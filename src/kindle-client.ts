@@ -191,12 +191,12 @@ export class KindleClient {
     const sessionId = res.cookies['session-id']!
 
     const body = JSON.parse(res.body) as {
-      itemsList: Book[]
+      itemsList: Array<Book & { percentageRead?: number }>
       paginationToken: string
     }
 
     return {
-      books: body.itemsList.map((book) => ({
+      books: body.itemsList.map(({ percentageRead: _, ...book }) => ({
         ...book,
         authors: normalizeAuthors(book.authors)
       })),
