@@ -75,34 +75,39 @@ export interface BooksQueryOptions {
   fetchAllPages?: boolean
 }
 
-export interface OwnedBookMetadataResponse {
+export type StartReadingBookResponse = {
   YJFormatVersion: string
   clippingLimit: number
-  // "contentChecksum": null;
+  contentChecksum: any
   contentType: string
   contentVersion: string
   deliveredAsin: string
-  // "downloadRestrictionReason": null,
-  // "expirationDate": null,
+  downloadRestrictionReason: any
+  expirationDate: any
   format: string
   formatVersion: string
-  // "fragmentMapUrl": null,
+  fragmentMapUrl: any
   hasAnnotations: boolean
   isOwned: boolean
   isSample: boolean
-  // karamelToken: null;
+  karamelToken: KaramelToken
   kindleSessionId: string
   lastPageReadData: {
     deviceName: string
     position: number
     syncTime: number
   }
-  manifestUrl: null | string
+  manifestUrl: any
   metadataUrl: string
   originType: string
-  pageNumberUrl: null | string
+  pageNumberUrl: any
   requestedAsin: string
   srl: number
+}
+
+export interface KaramelToken {
+  token: string
+  expiresAt: number
 }
 
 export interface BookMetadataResponse {

@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises'
+
 import defaultKy, { type KyInstance } from 'ky'
 import pThrottle from 'p-throttle'
 
@@ -7,8 +9,9 @@ import type {
   BookMetadataResponse,
   BooksQueryOptions,
   DeviceInfo,
-  OwnedBookMetadataResponse,
+  KaramelToken,
   RequiredCookies,
+  StartReadingBookResponse,
   TLSClientRequestPayload,
   TLSClientResponseData
 } from './types'
@@ -42,6 +45,7 @@ export class KindleClient {
 
   protected sessionId?: string
   protected adpSessionId?: string
+  protected karamelToken?: KaramelToken
 
   public books: Book[] = []
 
@@ -220,7 +224,8 @@ export class KindleClient {
         book.asin
       }&clientVersion=${this.clientVersion}`
     )
-    const info = JSON.parse(res0.body) as OwnedBookMetadataResponse
+    const info = JSON.parse(res0.body) as StartReadingBookResponse
+    this.karamelToken = info.karamelToken
 
     const res1 = await this._request(info.metadataUrl)
     const meta = parseJsonpResponse<BookMetadataResponse>(res1)
@@ -251,6 +256,56 @@ export class KindleClient {
       endPosition: meta.endPosition,
       publisher: meta.publisher
     }
+  }
+
+  async getBookContent(asin: string): Promise<void> {
+    const params = {
+      version: 3.0,
+      asin,
+      contentType: 'FullBook',
+      revision: 'da38557c', // TODO?
+      fontFamily: 'Bookerly',
+      fontSize: 8.91,
+      lineHeight: 1.4,
+      dpi: 160,
+      height: 222,
+      width: 1384,
+      marginBottom: 0,
+      marginLeft: 9,
+      marginRight: 9,
+      marginTop: 0,
+      maxNumberColumns: 2,
+      theme: 'default',
+      locationMap: true,
+      packageType: 'TAR',
+      encryptionVersion: 'NONE',
+      numPage: 6,
+      skipPageCount: 0,
+      startingPosition: 162_515,
+      bundleImages: false,
+      token: this.karamelToken?.token
+    }
+
+    const url = new URL(`${this.baseUrl}/renderer/render`)
+
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined) {
+        url.searchParams.set(key, value.toString())
+      } else {
+        url.searchParams.delete(key)
+      }
+    }
+
+    const { body, ...res } = await this._request(url.toString())
+    console.log(res)
+
+    if (!body) {
+      throw new Error(
+        'Failed to fetch book content: you likely need to refresh your cookies'
+      )
+    }
+
+    await fs.writeFile(`out/${asin}.tar`, body)
   }
 
   /**

@@ -11,6 +11,8 @@ async function main() {
 
   const bookDetails = await kindle.getBookDetails('B0819W19WD')
   console.log(JSON.stringify(bookDetails, null, 2))
+
+  await kindle.getBookContent('B0819W19WD')
 }
 
 try {

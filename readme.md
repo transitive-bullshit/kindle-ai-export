@@ -16,6 +16,7 @@
   - [Device Token](#device-token)
 - [Usage](#usage)
   - [Book Details](#book-details)
+  - [TODO](#todo)
 - [Disclaimer](#disclaimer)
 - [License](#license)
 
@@ -45,7 +46,9 @@ Amazon's login system is quite strict and the SMS 2FA makes automating logins di
 - `x-main`
 - `session-id`
 
-You can grab these values directly by going on inspect element after loading [read.amazon.com](https://read.amazon.com) and copying the entire thing or just the select ones ![](./assets/cookie-demonstration.png)
+You can grab these values directly by going on inspect element after loading [read.amazon.com](https://read.amazon.com) and copying the entire thing or just the select ones.
+
+![cookies in the network panel](./assets/cookie-demonstration.png)
 
 ### Device Token
 
@@ -53,7 +56,7 @@ We also need a deviceToken for your kindle. You can grab this from the same netw
 
 https://read.amazon.com/service/web/register/getDeviceToken?serialNumber=(your-device-token)&deviceType=(your-device-token)
 
-![](./assets/kindle-device-token.png)
+![device token network request](./assets/kindle-device-token.png)
 
 Both of those identifiers should be the same.
 
@@ -142,6 +145,10 @@ console.log(bookDetails)
 }
 */
 ```
+
+### TODO
+
+- book contents via playwright / browserbase
 
 ## Disclaimer
 
