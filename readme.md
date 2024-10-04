@@ -11,6 +11,9 @@
 
 - [Intro](#intro)
 - [Install](#install)
+- [Setup](#setup)
+  - [Cookies](#cookies)
+  - [Device Token](#device-token)
 - [Disclaimer](#disclaimer)
 - [License](#license)
 
@@ -26,6 +29,31 @@ TODO
 ```sh
 npm install kindle-api
 ```
+
+## Setup
+
+This library does depends on an external [tls-client-api](https://github.com/bogdanfinn/tls-client-api) to proxy requests due to amazon's recent changes to their TLS fingerprinting. You'll need to run the server locally to be able to use this library. It's quite easy to set up and have one running in a few minutes and will save you tons of headache if you wanna do other kinds of scraping in the future.
+
+### Cookies
+
+Amazon's login system is quite strict and the SMS 2FA makes automating logins difficult. Instead of trying to automate that with puppeteer and slow things down, we use 4 cookies that stay valid for an entire year. (**TODO: one or more of these cookies is expiring every few minutes**)
+
+- `ubid-main`
+- `at-main`
+- `x-main`
+- `session-id`
+
+You can grab these values directly by going on inspect element after loading [read.amazon.com](https://read.amazon.com) and copying the entire thing or just the select ones ![](./assets/cookie-demonstration.png)
+
+### Device Token
+
+We also need a deviceToken for your kindle. You can grab this from the same network window as before on the `getDeviceToken` request that looks like:
+
+https://read.amazon.com/service/web/register/getDeviceToken?serialNumber=(your-device-token)&deviceType=(your-device-token)
+
+![](./assets/kindle-device-token.png)
+
+Both of those identifiers should be the same.
 
 ## Disclaimer
 

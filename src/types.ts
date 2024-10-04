@@ -1,18 +1,27 @@
+export type ResourceType = 'EBOOK' | 'EBOOK_SAMPLE' | (string & {})
+export type BookType = 'owned' | 'sample' | 'unknown'
+export type OriginType = 'KINDLE_UNLIMITED' | 'PRIME' | 'COMICS_UNLIMITED'
+export type SortType =
+  | 'recency'
+  | 'title'
+  | 'author'
+  | 'acquisition_desc'
+  | 'acquisition_asc'
+
 export interface Book {
   title: string
   asin: string
   authors: string[]
   mangaOrComicAsin: boolean
-  resourceType: 'EBOOK' | 'EBOOK_SAMPLE' | (string & {})
+  resourceType: ResourceType
   originType: string
-  percentageRead: number
   productUrl: string
   webReaderUrl: string
 }
 
 export interface BookLightDetails {
   title: string
-  bookType: 'owned' | 'sample' | 'unknown'
+  bookType: BookType
   mangaOrComicAsin: boolean
   formatVersion: string
   progress: {
@@ -42,18 +51,9 @@ export interface BooksQueryOptions {
    * Defines the order of the results.
    * The default is "recency".
    */
-  sortType?:
-    | 'recency'
-    | 'title'
-    | 'author'
-    | 'acquisition_desc'
-    | 'acquisition_asc'
+  sortType?: SortType
 
-  /**
-   * Filter by abonnement.
-   * By default, the filter is unset.
-   */
-  originType?: 'KINDLE_UNLIMITED' | 'PRIME' | 'COMICS_UNLIMITED'
+  originType?: OriginType
 
   /**
    * Request the next page of results.
