@@ -62,7 +62,14 @@ Both of those identifiers should be the same.
 ```ts
 import { KindleClient } from 'kindle-api'
 
-const kindle = new KindleClient()
+const kindle = new KindleClient({
+  cookies: 'ubid-main=xxx.xxxx ...',
+  deviceToken: '(your-device-token)'
+  tlsServerUrl: 'http://127.0.0.1:8080',
+  tlsServerApiKey: '(your-tls-server-api-key)'
+})
+
+// Initialize session and fetch initial list of books
 await kindle.init()
 
 console.log(kindle.books)
