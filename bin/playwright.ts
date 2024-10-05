@@ -213,7 +213,7 @@ async function main() {
 
   const totalContentPages = Math.min(
     parsedToc.afterLastPageTocItem?.page
-      ? parsedToc.afterLastPageTocItem?.page - 1
+      ? parsedToc.afterLastPageTocItem!.page
       : total,
     total
   )
