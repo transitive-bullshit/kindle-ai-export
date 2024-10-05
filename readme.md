@@ -148,7 +148,11 @@ console.log(bookDetails)
 
 ### TODO
 
-- book contents via playwright / browserbase
+- book contents via browserbase (remote playwright)
+  - doesn't work because reader pages fail to render
+- book contents via local playwright
+- recreate kindle webapp renderer
+- screenshots from browser extension
 
 ## Disclaimer
 
