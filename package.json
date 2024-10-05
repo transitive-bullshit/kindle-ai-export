@@ -40,6 +40,7 @@
   "dependencies": {
     "@inquirer/prompts": "^6.0.1",
     "ky": "^1.7.2",
+    "openai-fetch": "^3.2.0",
     "p-throttle": "^6.2.0"
   },
   "devDependencies": {
@@ -49,8 +50,10 @@
     "delay": "^6.0.0",
     "dotenv": "^16.4.5",
     "eslint": "^8.57.0",
+    "globby": "^14.0.2",
     "npm-run-all2": "^6.2.2",
     "only-allow": "^1.2.1",
+    "p-map": "^7.0.2",
     "playwright": "^1.47.2",
     "playwright-core": "^1.47.2",
     "prettier": "^3.3.3",

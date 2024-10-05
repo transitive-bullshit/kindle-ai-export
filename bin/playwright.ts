@@ -251,10 +251,7 @@ async function main() {
       screenshot: screenshotPath
     })
 
-    console.log({ src, ...pages.at(-1) })
-    // await delay(5000)
-
-    // 5/6, 21/22
+    console.log(pages.at(-1))
 
     // Navigation is very spotty without this delay; I think it may be due to
     // the screenshot changing the DOM temporarily and not being stable yet.
