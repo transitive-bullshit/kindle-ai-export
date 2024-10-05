@@ -11,6 +11,13 @@ import pMap from 'p-map'
 
 import { assert } from '../src/utils'
 
+type ContentChunk = {
+  index: number
+  page: number
+  text: string
+  screenshot: string
+}
+
 async function main() {
   const asin = process.env.ASIN
   assert(asin, 'ASIN is required')
@@ -19,22 +26,35 @@ async function main() {
   const pageScreenshotsDir = path.join(outDir, 'pages')
   const pageScreenshots = await globby(`${pageScreenshotsDir}/*.png`)
 
+  // const existingContent = JSON.parse(
+  //   await fs.readFile(path.join(outDir, 'content.json'), 'utf8')
+  // ) as ContentChunk[]
+
   const openai = new OpenAIClient()
 
-  const results = (
+  const results: ContentChunk[] = (
     await pMap(
       pageScreenshots,
       async (screenshot) => {
         const screenshotBuffer = await fs.readFile(screenshot)
         const screenshotBase64 = `data:image/png;base64,${screenshotBuffer.toString('base64')}`
-        const index = Number.parseInt(screenshot.match(/0*(\d+)\.png/)![1]!)
+        const metadataMatch = screenshot.match(/0*(\d+)-\0*(\d+).png/)
+        assert(
+          metadataMatch?.[1] && metadataMatch?.[2],
+          `invalid screenshot filename: ${screenshot}`
+        )
+        const index = Number.parseInt(metadataMatch[1]!, 10)
+        const page = Number.parseInt(metadataMatch[2]!, 10)
+        assert(
+          !Number.isNaN(index) && !Number.isNaN(page),
+          `invalid screenshot filename: ${screenshot}`
+        )
 
         try {
           let retries = 0
 
           do {
             const res = await openai.createChatCompletion({
-              // model: retries < 3 ? 'gpt-4o-mini' : 'gpt-4o',
               model: 'gpt-4o',
               temperature: retries < 2 ? 0 : 0.5,
               messages: [
@@ -63,12 +83,19 @@ Do not include any additional text, descriptions, or punctuation. Ignore any emb
 
             if (!text) continue
             if (text.length < 100 && /i'm sorry/i.test(text)) {
+              // Sometimes the model refuses to generate text for an image
+              // presumably if it thinks the content may be copyrighted or
+              // otherwise inappropriate. I haven't seen this from "gpt-4o",
+              // but I have seen it more regularly from "gpt-4o-mini", so in
+              // this case we'll retry with a higher temperature and cross our
+              // fingers.
               console.warn(`retrying refusal...`, { index, text, screenshot })
               continue
             }
 
-            const result = {
+            const result: ContentChunk = {
               index,
+              page,
               text,
               screenshot
             }
@@ -84,6 +111,10 @@ Do not include any additional text, descriptions, or punctuation. Ignore any emb
     )
   ).filter(Boolean)
 
+  await fs.writeFile(
+    path.join(outDir, 'content.json'),
+    JSON.stringify(results, null, 2)
+  )
   console.log(JSON.stringify(results, null, 2))
 }
 

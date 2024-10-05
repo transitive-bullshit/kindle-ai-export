@@ -9,12 +9,24 @@ import { input } from '@inquirer/prompts'
 import delay from 'delay'
 import { chromium, type Locator } from 'playwright'
 
-import { assert } from '../src/utils'
+import { assert, deromanize } from '../src/utils'
 
 interface PageNav {
   page?: number
   location?: number
   total: number
+}
+
+interface TocItem extends PageNav {
+  title: string
+  locator?: Locator
+}
+
+interface PageChunk {
+  index: number
+  page: number
+  total: number
+  screenshot: string
 }
 
 async function main() {
@@ -159,13 +171,9 @@ async function main() {
   await delay(1000)
 
   const $tocItems = await page.locator('ion-list ion-item').all()
-  const tocItems: Array<{
-    title: string
-    pageNav: PageNav
-    locator: Locator
-  }> = []
+  const tocItems: Array<TocItem> = []
 
-  console.log(`initializing ${$tocItems.length} TOC items...`)
+  console.warn(`initializing ${$tocItems.length} TOC items...`)
   for (const tocItem of $tocItems) {
     await tocItem.scrollIntoViewIfNeeded()
 
@@ -180,68 +188,70 @@ async function main() {
 
     tocItems.push({
       title,
-      pageNav,
+      ...pageNav,
       locator: tocItem
     })
 
-    console.log(tocItems.at(-1))
+    console.warn({ title, ...pageNav })
 
-    if (pageNav.page !== undefined) {
-      break
-    }
+    // if (pageNav.page !== undefined) {
+    //   break
+    // }
 
     if (pageNav.page !== undefined && pageNav.page >= pageNav.total) {
       break
     }
   }
 
-  const toc = tocItems.map((tocItem) => ({
-    ...tocItem.pageNav,
-    title: tocItem.title
-  }))
+  const parsedToc = parseTocItems(tocItems)
+  const toc: TocItem[] = tocItems.map(({ locator: _, ...tocItem }) => tocItem)
 
-  const firstPageTocItem = tocItems.find(
-    (item) => item.pageNav?.page !== undefined
+  const total = parsedToc.firstPageTocItem.total
+  const pagePadding = `${total * 2}`.length
+  await parsedToc.firstPageTocItem.locator!.scrollIntoViewIfNeeded()
+  await parsedToc.firstPageTocItem.locator!.click()
+
+  const totalContentPages = Math.min(
+    parsedToc.afterLastPageTocItem?.page
+      ? parsedToc.afterLastPageTocItem?.page - 1
+      : total,
+    total
   )
-  assert(firstPageTocItem, 'Unable to find first valid page in TOC')
-
-  const total = firstPageTocItem.pageNav.total
-  const pagePadding = `${total * 3}`.length
-  await firstPageTocItem.locator.scrollIntoViewIfNeeded()
-  await firstPageTocItem.locator.click()
+  assert(totalContentPages > 0, 'No content pages found')
 
   await page.locator('.side-menu-close-button').click()
   await delay(1000)
 
-  const pages: Array<{
-    index: number
-    page: number
-    total: number
-    screenshot: string
-  }> = []
-
-  console.log(`reading ${total} pages...`)
+  const pages: Array<PageChunk> = []
+  console.warn(
+    `reading ${totalContentPages} pages${total > totalContentPages ? ` (of ${total} total pages stopping at "${parsedToc.afterLastPageTocItem!.title}")` : ''}...`
+  )
 
   do {
     const pageNav = await getPageNav()
     if (pageNav?.page === undefined) {
       break
     }
+    if (pageNav.page > totalContentPages) {
+      break
+    }
+
     const index = pages.length
 
     const src = await page
       .locator('#kr-renderer .kg-full-page-img img')
       .getAttribute('src')
 
-    // await hideAppUI()
     const b = await page
       .locator('#kr-renderer .kg-full-page-img img')
       .screenshot({ type: 'png', scale: 'css' })
-    // await showAppUI()
 
     const screenshotPath = path.join(
       pageScreenshotsDir,
-      `${index}`.padStart(pagePadding, '0') + '.png'
+      `${index}`.padStart(pagePadding, '0') +
+        '-' +
+        `${pageNav.page}`.padStart(pagePadding, '0') +
+        '.png'
     )
     await fs.writeFile(screenshotPath, b)
     pages.push({
@@ -251,17 +261,13 @@ async function main() {
       screenshot: screenshotPath
     })
 
-    console.log(pages.at(-1))
+    console.warn(pages.at(-1))
 
     // Navigation is very spotty without this delay; I think it may be due to
     // the screenshot changing the DOM temporarily and not being stable yet.
     await delay(100)
 
-    if (pageNav.page >= pageNav.total) {
-      break
-    }
-
-    if (pageNav.page >= 3) {
+    if (pageNav.page > totalContentPages) {
       break
     }
 
@@ -275,7 +281,7 @@ async function main() {
         // await delay(100)
         if (retries % 10 === 0) {
           if (retries > 0) {
-            console.log('retrying...', {
+            console.warn('retrying...', {
               src,
               retries,
               ...pages.at(-1)
@@ -287,8 +293,12 @@ async function main() {
             .click({ timeout: 1000 })
         }
         // await delay(500)
-      } catch {
+      } catch (err: any) {
         // No next page to navigate to
+        console.warn(
+          'unable to navigate to next page; breaking...',
+          err.message
+        )
         break
       }
 
@@ -299,43 +309,113 @@ async function main() {
         break
       }
 
+      if (pageNav.page >= totalContentPages) {
+        break
+      }
+
       await delay(100)
 
       ++retries
     } while (true)
   } while (true)
 
+  const result = { toc, pages }
+  await fs.writeFile(
+    path.join(outDir, 'toc.json'),
+    JSON.stringify(result, null, 2)
+  )
+  console.log(JSON.stringify(result, null, 2))
+
   if (initialPageNav?.page !== undefined) {
-    console.log(`resetting back to initial page ${initialPageNav.page}...`)
+    console.warn(`resetting back to initial page ${initialPageNav.page}...`)
     // Reset back to the initial page
     await goToPage(initialPageNav.page)
   }
 
   await page.close()
   await context.close()
-
-  console.log(JSON.stringify({ toc, pages }, null, 2))
 }
 
 function parsePageNav(text: string | null): PageNav | undefined {
-  const match = text?.match(/page\s+(\d+)\s+of\s+(\d+)/i)
-  if (match) {
-    const page = Number.parseInt(match?.[1]!)
-    const total = Number.parseInt(match?.[2]!)
-    if (Number.isNaN(page) || Number.isNaN(total)) {
-      return undefined
-    }
+  {
+    // Parse normal page locations
+    const match = text?.match(/page\s+(\d+)\s+of\s+(\d+)/i)
+    if (match) {
+      const page = Number.parseInt(match?.[1]!)
+      const total = Number.parseInt(match?.[2]!)
+      if (Number.isNaN(page) || Number.isNaN(total)) {
+        return undefined
+      }
 
-    return { page, total }
-  } else {
+      return { page, total }
+    }
+  }
+
+  {
+    // Parse locations which are not part of the main book pages
+    // (toc, copyright, title, etc)
     const match = text?.match(/location\s+(\d+)\s+of\s+(\d+)/i)
-    const location = Number.parseInt(match?.[1]!)
-    const total = Number.parseInt(match?.[2]!)
-    if (Number.isNaN(location) || Number.isNaN(total)) {
-      return undefined
-    }
+    if (match) {
+      const location = Number.parseInt(match?.[1]!)
+      const total = Number.parseInt(match?.[2]!)
+      if (Number.isNaN(location) || Number.isNaN(total)) {
+        return undefined
+      }
 
-    return { location, total }
+      return { location, total }
+    }
+  }
+
+  {
+    // Parse locations which use roman numerals
+    const match = text?.match(/page\s+([cdilmvx]+)\s+of\s+(\d+)/i)
+    if (match) {
+      const location = deromanize(match?.[1]!)
+      const total = Number.parseInt(match?.[2]!)
+      if (Number.isNaN(location) || Number.isNaN(total)) {
+        return undefined
+      }
+
+      return { location, total }
+    }
+  }
+}
+
+function parseTocItems(tocItems: TocItem[]) {
+  // Find the first page in the TOC which contains the main book content
+  // (after the title, table of contents, copyright, etc)
+  const firstPageTocItem = tocItems.find((item) => item.page !== undefined)
+  assert(firstPageTocItem, 'Unable to find first valid page in TOC')
+
+  // Try to find the first page in the TOC after the main book content
+  // (e.g. acknowledgements, about the author, etc)
+  const afterLastPageTocItem = tocItems.find((item) => {
+    if (item.page === undefined) return false
+    if (item === firstPageTocItem) return false
+
+    const percentage = item.page / item.total
+    if (percentage < 0.9) return false
+
+    if (/acknowledgements/i.test(item.title)) return true
+    if (/^discover more$/i.test(item.title)) return true
+    if (/^extras$/i.test(item.title)) return true
+    if (/about the author/i.test(item.title)) return true
+    if (/meet the author/i.test(item.title)) return true
+    if (/^also by /i.test(item.title)) return true
+    if (/^copyright$/i.test(item.title)) return true
+    if (/ teaser$/i.test(item.title)) return true
+    if (/ preview$/i.test(item.title)) return true
+    if (/^excerpt from/i.test(item.title)) return true
+    if (/^cast of characters$/i.test(item.title)) return true
+    if (/^timeline$/i.test(item.title)) return true
+    if (/^other titles/i.test(item.title)) return true
+
+    return false
+  })
+
+  return {
+    firstPageTocItem,
+    afterLastPageTocItem
   }
 }
 
