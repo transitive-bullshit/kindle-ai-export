@@ -93,15 +93,17 @@ export function deserializeCookies(cookies: string): RequiredCookies {
 
 const JSONP_REGEX = /\(({.*})\)/
 
-export function parseJsonpResponse<T>(
-  response: TLSClientResponseData
-): T | undefined {
-  const content = response.body.match(JSONP_REGEX)?.[1]
+export function parseJsonpResponse<T = unknown>(body: string): T | undefined {
+  const content = body?.match(JSONP_REGEX)?.[1]
   if (!content) {
     return
   }
 
-  return JSON.parse(content) as T
+  try {
+    return JSON.parse(content) as T
+  } catch {
+    return
+  }
 }
 
 const numerals = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 }

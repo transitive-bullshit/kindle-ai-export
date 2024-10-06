@@ -31,7 +31,59 @@ interface PageChunk {
   screenshot: string
 }
 
-interface TOC {
+interface Meta {
+  ACR: string
+  asin: string
+  authorList: Array<string>
+  bookSize: string
+  bookType: string
+  cover: string
+  language: string
+  positions: {
+    cover: number
+    srl: number
+    toc: number
+  }
+  publisher: string
+  refEmId: string
+  releaseDate: string
+  sample: boolean
+  title: string
+  version: string
+  startPosition: number
+  endPosition: number
+}
+
+interface Info {
+  clippingLimit: number
+  contentChecksum: any
+  contentType: string
+  contentVersion: string
+  deliveredAsin: string
+  downloadRestrictionReason: any
+  expirationDate: any
+  format: string
+  formatVersion: string
+  fragmentMapUrl: any
+  hasAnnotations: boolean
+  isOwned: boolean
+  isSample: boolean
+  kindleSessionId: string
+  lastPageReadData: {
+    deviceName: string
+    position: number
+    syncTime: number
+  }
+  manifestUrl: any
+  originType: string
+  pageNumberUrl: any
+  requestedAsin: string
+  srl: number
+}
+
+interface Metadata {
+  info: Info
+  meta: Meta
   toc: TocItem[]
   pages: PageChunk[]
 }
@@ -45,12 +97,12 @@ async function main() {
   const content = JSON.parse(
     await fsp.readFile(path.join(outDir, 'content.json'), 'utf8')
   ) as ContentChunk[]
-  const { toc } = JSON.parse(
-    await fsp.readFile(path.join(outDir, 'toc.json'), 'utf8')
-  ) as TOC
+  const metadata = JSON.parse(
+    await fsp.readFile(path.join(outDir, 'metadata.json'), 'utf8')
+  ) as Metadata
 
-  const title = `Kindle Test ${asin}`
-  const author = 'Alastair Reynolds'
+  const title = metadata.meta.title
+  const author = metadata.meta.authorList.join('\n')
 
   const doc = new PDFDocument({
     autoFirstPage: true,
@@ -75,8 +127,8 @@ async function main() {
 
   const renderTitlePage = () => {
     ;(doc as any).outline.addItem('Title Page')
-    doc.fontSize(60)
-    doc.y = doc.page.height / 2 - doc.currentLineHeight()
+    doc.fontSize(48)
+    doc.y = doc.page.height / 2 - doc.heightOfString(title) / 2
     doc.text(title, { align: 'center' })
     const w = doc.widthOfString(title)
 
@@ -98,11 +150,11 @@ async function main() {
   let needsNewPage = false
   let index = 0
 
-  for (let i = 0; i < toc.length - 1; i++) {
-    const tocItem = toc[i]!
+  for (let i = 0; i < metadata.toc.length - 1; i++) {
+    const tocItem = metadata.toc[i]!
     if (tocItem.page === undefined) continue
 
-    const nextTocItem = toc[i + 1]!
+    const nextTocItem = metadata.toc[i + 1]!
     const nextIndex = nextTocItem.page
       ? content.findIndex((c) => c.page >= nextTocItem.page!)
       : content.length

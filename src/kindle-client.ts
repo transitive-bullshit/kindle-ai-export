@@ -228,7 +228,7 @@ export class KindleClient {
     this.karamelToken = info.karamelToken
 
     const res1 = await this._request(info.metadataUrl)
-    const meta = parseJsonpResponse<BookMetadataResponse>(res1)
+    const meta = parseJsonpResponse<BookMetadataResponse>(res1.body)
     assert(meta, `Failed to fetch metadata for book ${book.asin}`)
 
     const roughDecimal =

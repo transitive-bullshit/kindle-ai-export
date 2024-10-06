@@ -9,7 +9,12 @@ import { input } from '@inquirer/prompts'
 import delay from 'delay'
 import { chromium, type Locator } from 'playwright'
 
-import { assert, deromanize } from '../src/utils'
+import {
+  assert,
+  deromanize,
+  normalizeAuthors,
+  parseJsonpResponse
+} from '../src/utils'
 
 interface PageNav {
   page?: number
@@ -63,6 +68,36 @@ async function main() {
     viewport: { width: 1280, height: 720 }
   })
   const page = await context.newPage()
+
+  let info: any
+  let meta: any
+
+  page.on('response', async (response) => {
+    const status = response.status()
+    if (status !== 200) return
+
+    const url = new URL(response.url())
+    if (
+      url.hostname === 'read.amazon.com' &&
+      url.pathname === '/service/mobile/reader/startReading' &&
+      url.searchParams.get('asin')?.toLowerCase() === asin.toLowerCase()
+    ) {
+      const body: any = await response.json()
+      delete body.karamelToken
+      delete body.metadataUrl
+      delete body.YJFormatVersion
+      info = body
+    } else if (url.pathname.endsWith('YJmetadata.jsonp')) {
+      const body = await response.text()
+      const metadata = parseJsonpResponse<any>(body)
+      if (metadata.asin !== asin) return
+      delete metadata.cpr
+      if (Array.isArray(metadata.authorsList)) {
+        metadata.authorsList = normalizeAuthors(metadata.authorsList)
+      }
+      meta = metadata
+    }
+  })
 
   await Promise.any([
     page.goto(bookReaderUrl, { timeout: 30_000 }),
@@ -166,8 +201,6 @@ async function main() {
   await updateSettings()
 
   const initialPageNav = await getPageNav()
-
-  await delay(5_000_000)
 
   await page.locator('ion-button[title="Table of Contents"]').click()
   await delay(1000)
@@ -321,9 +354,9 @@ async function main() {
     } while (true)
   } while (true)
 
-  const result = { toc, pages }
+  const result = { info, meta, toc, pages }
   await fs.writeFile(
-    path.join(outDir, 'toc.json'),
+    path.join(outDir, 'metadata.json'),
     JSON.stringify(result, null, 2)
   )
   console.log(JSON.stringify(result, null, 2))
@@ -420,6 +453,46 @@ function parseTocItems(tocItems: TocItem[]) {
     afterLastPageTocItem
   }
 }
+
+// fetch(
+//   'https://read.amazon.com/service/mobile/reader/startReading?asin=B0819W19WD&clientVersion=20000100',
+//   {
+//     headers: {
+//       accept: '*/*',
+//       'accept-language': 'en-US,en;q=0.9',
+//       'device-memory': '8',
+//       downlink: '10',
+//       dpr: '2',
+//       ect: '4g',
+//       priority: 'u=1, i',
+//       rtt: '50',
+//       'sec-ch-device-memory': '8',
+//       'sec-ch-dpr': '2',
+//       'sec-ch-ua':
+//         '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
+//       'sec-ch-ua-mobile': '?0',
+//       'sec-ch-ua-platform': '"macOS"',
+//       'sec-ch-viewport-width': '1728',
+//       'sec-fetch-dest': 'empty',
+//       'sec-fetch-mode': 'cors',
+//       'sec-fetch-site': 'same-origin',
+//       'viewport-width': '1728',
+//       'x-adp-session-token': null,
+//       cookie: null,
+//       Referer: 'https://read.amazon.com/?asin=B0819W19WD&ref_=kwl_kr_iv_rec_1',
+//       'Referrer-Policy': 'strict-origin-when-cross-origin'
+//     },
+//     body: null,
+//     method: 'GET'
+//   }
+// )
+
+// fetch(
+//   'https://k4wyjmetadata.s3.amazonaws.com/books2/B0819W19WD/da38557c/CR%21WPPV87W8317H7FWJRF6JFMVE7SJY/book/YJmetadata.jsonp',
+//   {
+//     method: 'GET'
+//   }
+// )
 
 try {
   await main()

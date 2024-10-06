@@ -26,10 +26,6 @@ async function main() {
   const pageScreenshotsDir = path.join(outDir, 'pages')
   const pageScreenshots = await globby(`${pageScreenshotsDir}/*.png`)
 
-  // const existingContent = JSON.parse(
-  //   await fs.readFile(path.join(outDir, 'content.json'), 'utf8')
-  // ) as ContentChunk[]
-
   const openai = new OpenAIClient()
 
   const results: ContentChunk[] = (
