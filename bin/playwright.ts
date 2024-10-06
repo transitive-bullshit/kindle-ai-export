@@ -167,6 +167,8 @@ async function main() {
 
   const initialPageNav = await getPageNav()
 
+  await delay(5_000_000)
+
   await page.locator('ion-button[title="Table of Contents"]').click()
   await delay(1000)
 
