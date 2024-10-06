@@ -1,4 +1,4 @@
-import type { RequiredCookies, TLSClientResponseData } from './types'
+import type { RequiredCookies } from './types'
 
 export function getEnv(name: string): string | undefined {
   try {

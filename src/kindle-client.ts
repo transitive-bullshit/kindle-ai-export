@@ -123,7 +123,7 @@ export class KindleClient {
     })
     const url = `${this.baseUrl}/service/web/register/getDeviceToken?${params.toString()}`
     const res = await this._request(url)
-    const deviceInfo: DeviceInfo = JSON.parse(res.body)
+    const deviceInfo = JSON.parse(res.body) as DeviceInfo
     this.adpSessionId = deviceInfo.deviceSessionToken
     return deviceInfo
   }

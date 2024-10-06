@@ -179,18 +179,6 @@ async function main() {
     needsNewPage = true
   }
 
-  // const text = content
-  //   .map((chunk) => chunk.text)
-  //   .join(' ')
-  //   .replaceAll(/\n+/g, '\n')
-  //   .replaceAll(/^\s*/gm, '')
-
-  // doc.text(text, {
-  //   indent: 20,
-  //   lineGap: 4,
-  //   paragraphGap: 8
-  // })
-
   doc.end()
   await new Promise((resolve, reject) => {
     stream.on('finish', resolve)
