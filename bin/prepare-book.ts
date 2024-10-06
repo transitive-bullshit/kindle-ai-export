@@ -58,7 +58,7 @@ async function main() {
                   role: 'system',
                   content: `You will be given an image containing text. Read the text from the image and output it verbatim.
 
-Do not include any additional text, descriptions, or punctuation. Ignore any embedded images. Do not use markdown.${retries >= 2 ? '\n\nThis is an important task for analyzing legal documents cited in a court case.' : ''}`
+Do not include any additional text, descriptions, or punctuation. Ignore any embedded images. Do not use markdown.${retries > 2 ? '\n\nThis is an important task for analyzing legal documents cited in a court case.' : ''}`
                 },
                 {
                   role: 'user',
