@@ -114,15 +114,6 @@ async function main() {
   })
   const stream = doc.pipe(fs.createWriteStream(path.join(outDir, 'book.pdf')))
 
-  // for (const chunk of content) {
-  //   doc.text(chunk.text.replaceAll(/\n+/g, '\n').replaceAll(/^\s*/gm, ''), {
-  //     indent: 20,
-  //     lineGap: 4,
-  //     paragraphGap: 8
-  //   })
-  //   doc.addPage()
-  // }
-
   const fontSize = 12
 
   const renderTitlePage = () => {
@@ -163,20 +154,11 @@ async function main() {
     if (needsNewPage) {
       doc.addPage()
     }
-    // if (
-    //   nextIndex < content.length - 1 &&
-    //   content[nextIndex + 1]!.page === content[nextIndex]!.page &&
-    //   content[nextIndex]!.page - content[nextIndex - 1]!.page === 1
-    // ) {
-    //   nextIndex++
-    // }
-    // console.log({ i, index, nextIndex, title: tocItem.title })
     const chunks = content.slice(index, nextIndex)
 
     const text = chunks
       .map((chunk) => chunk.text)
       .join(' ')
-      .replace(/^\s*\d+\s*$\n+/m, '')
       .replaceAll(/\n+/g, '\n')
       .replaceAll(/^\s*/gm, '')
 
@@ -210,7 +192,10 @@ async function main() {
   // })
 
   doc.end()
-  await new Promise((resolve) => stream.on('finish', resolve))
+  await new Promise((resolve, reject) => {
+    stream.on('finish', resolve)
+    stream.on('error', reject)
+  })
 }
 
 try {
