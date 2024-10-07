@@ -29,7 +29,7 @@ This project makes it easy to export the contents of any ebook in your Kindle li
 
 _You must own the ebook on Kindle for this project to work._
 
-The [examples directory](./examples/B0819W19WD) contains a preview of the first page of output for the scifi book [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds), including the [preview PDF](./examples/B0819W19WD/book-preview.pdf).
+The [examples directory](./examples/B0819W19WD) contains a preview export of the first page of the scifi book [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds), including the [preview PDF output](./examples/B0819W19WD/book-preview.pdf).
 
 ### How does it work?
 
@@ -170,17 +170,10 @@ Sylveste stood on the edge of the excavation and wondered if any of his labours 
 
 We do this for every page of the book (accounting for chapters, metadata, and special cases), and then we can easily export the result.
 
-The [examples folder](./examples/B0819W19WD) contains a **PREVIEW** of the first page[Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds), including the [preview PDF](./examples/B0819W19WD/book-preview.pdf) and [preview EPUB](./examples/B0819W19WD/book-preview.epub) – all generated with this project. (_I didn't include the full export in the repo to respect the author's copyright_, but this should be enough for you to get a feel for what the output looks like).
+The [examples folder](./examples/B0819W19WD) contains a **PREVIEW** of the first page of [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds). (_I didn't include the full export in the repo to respect the author's copyright_, but this should be enough for you to get a feel for what the output looks like).
 
-<!-- <object data="https://github.com/user-attachments/files/17271746/book-preview.pdf" width="830" height="466" type='application/pdf'></object> -->
-
-<embed src="https://github.com/user-attachments/files/17271746/book-preview.pdf" type="application/pdf" />
-
-<object data="" type="application/pdf" width="700px" height="700px">
-    <embed src="https://github.com/user-attachments/files/17271746/book-preview.pdf">
-        <p>This browser does not support PDFs. Please download the PDF to view it: <a href="https://github.com/user-attachments/files/17271746/book-preview.pdf">Download PDF</a>.</p>
-    </embed>
-</object>
+- [preview PDF output](./examples/B0819W19WD/book-preview.pdf)
+- [preview EPUB output](./examples/B0819W19WD/book-preview.epub)
 
 ## License
 
