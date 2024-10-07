@@ -86,7 +86,7 @@ ${text}`.split('\n\n')
 
       if (chunk.length > maxCharactersPerAudioBatch) {
         throw new Error(
-          `TODO: handle large chunks ${chunk.length} characters: ${chunk}`
+          `TODO: handle large paragraphs ${chunk.length} characters: ${chunk}`
         )
       }
 
@@ -112,9 +112,6 @@ ${text}`.split('\n\n')
     }
 
     index = nextIndex
-
-    // TODO
-    break
   }
 
   console.log()
@@ -167,9 +164,4 @@ ${text}`.split('\n\n')
   )
 }
 
-try {
-  await main()
-} catch (err) {
-  console.error('error', err)
-  process.exit(1)
-}
+await main()

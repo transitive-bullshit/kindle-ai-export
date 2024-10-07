@@ -89,9 +89,4 @@ ${text}`
   console.log(output)
 }
 
-try {
-  await main()
-} catch (err) {
-  console.error('error', err)
-  process.exit(1)
-}
+await main()
