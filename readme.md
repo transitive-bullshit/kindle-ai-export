@@ -17,6 +17,7 @@
   - [Transcribe Book Content](#transcribe-book-content)
   - [Export Book as PDF](#export-book-as-pdf)
   - [(Optional) Export Book as EPUB](#optional-export-book-as-epub)
+  - [(Optional) Export Book as Markdown](#optional-export-book-as-markdown)
 - [Disclaimer](#disclaimer)
 - [Author's Notes](#authors-notes)
   - [Alternative Approaches](#alternative-approaches)
@@ -177,6 +178,15 @@ ebook-convert out/B0819W19WD/book.pdf out/B0819W19WD/book.epub --enable-heuristi
 ```
 
 _([ebook-convert docs](https://manual.calibre-ebook.com/generated/en/ebook-convert.html))_
+
+### (Optional) Export Book as Markdown
+
+```sh
+npx tsx src/export-book-markdown.ts
+```
+
+- This should run instantly.
+- The result is stored to `out/${asin}/book.md`.
 
 ## Disclaimer
 

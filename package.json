@@ -26,6 +26,7 @@
     "dotenv": "^16.4.5",
     "globby": "^14.0.2",
     "kindle-api-ky": "^1.0.1",
+    "ky": "^1.7.2",
     "openai-fetch": "^3.2.0",
     "p-map": "^7.0.2",
     "pdfkit": "^0.15.0",

@@ -4,11 +4,15 @@ import 'dotenv/config'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import ky from 'ky'
 import { OpenAIClient } from 'openai-fetch'
 import pMap from 'p-map'
 
 import type { BookMetadata, ContentChunk } from './types'
+import { UnrealSpeechClient } from './unreal-speech-client'
 import { assert, getEnv } from './utils'
+
+type TTSEngine = 'openai' | 'unrealspeech'
 
 async function main() {
   const asin = getEnv('ASIN')
@@ -28,24 +32,30 @@ async function main() {
   assert(metadata.meta, 'invalid book metadata: missing meta')
   assert(metadata.toc?.length, 'invalid book metadata: missing toc')
 
-  const openai = new OpenAIClient()
+  // TTS engine configuration
+  const ttsEngine = 'openai' as TTSEngine
+  const openaiVoice = 'alloy'
+  const unrealSpeechVoice = 'Scarlett'
+
+  const unrealSpeech =
+    ttsEngine === 'unrealspeech' ? new UnrealSpeechClient() : undefined
+  const openai = ttsEngine === 'openai' ? new OpenAIClient() : undefined
+  const maxCharactersPerAudioBatch = ttsEngine === 'openai' ? 4096 : 3000
 
   const title = metadata.meta.title
   const authors = metadata.meta.authorList
 
-  const sections: Array<{
+  const batches: Array<{
     title?: string
     text: string
   }> = []
 
-  sections.push({
+  batches.push({
     title,
-    text: `# ${title}
+    text: `${title}
 
 By ${authors.join(', ')}`
   })
-
-  // $30.000 / 1M characters
 
   for (let i = 0, index = 0; i < metadata.toc.length - 1; i++) {
     const tocItem = metadata.toc[i]!
@@ -57,25 +67,49 @@ By ${authors.join(', ')}`
       : content.length
     if (nextIndex < index) continue
 
+    // Aggregate the text
     const chunks = content.slice(index, nextIndex)
-
     const text = chunks
       .map((chunk) => chunk.text)
       .join(' ')
       .replaceAll('\n', '\n\n')
 
-    const chapterChunks: string[] = []
+    // Split the text in this chapter into paragraphs.
+    const t = `${tocItem.title}
 
-    chapterChunks.push(`## ${tocItem.title}
+${text}`.split('\n\n')
 
-${text}`)
+    // Combine successive paragraphs if they can fit with a single audio batch.
+    let j = 0
+    do {
+      const chunk = t[j]!
 
-    sections.push({
-      title: tocItem.title,
-      text: `## ${tocItem.title}
+      if (chunk.length > maxCharactersPerAudioBatch) {
+        throw new Error(
+          `TODO: handle large chunks ${chunk.length} characters: ${chunk}`
+        )
+      }
 
-${text}`.slice(0, 4095) // TODO: break up by paragraphs and then by sentences
-    })
+      if (j < t.length - 1) {
+        const nextChunk = t[j + 1]!
+
+        const combined = `${chunk}\n\n${nextChunk}`
+        if (combined.length <= maxCharactersPerAudioBatch) {
+          t[j] = combined
+          t.splice(j + 1, 1)
+          continue
+        }
+      }
+
+      ++j
+    } while (j < t.length)
+
+    for (const [k, element] of t.entries()) {
+      batches.push({
+        title: k === 0 ? tocItem.title : undefined,
+        text: element!
+      })
+    }
 
     index = nextIndex
 
@@ -83,19 +117,36 @@ ${text}`.slice(0, 4095) // TODO: break up by paragraphs and then by sentences
     break
   }
 
-  const audioPadding = `${sections.length}`.length
+  console.log()
+  console.log(batches)
+  console.log()
+  console.log(`Generating audio for ${batches.length} batches...`)
+  console.log()
+  const audioPadding = `${batches.length}`.length
 
   await pMap(
-    sections,
-    async (section, index) => {
-      console.log(`Generating audio for section ${index + 1}...`)
+    batches,
+    async (batch, index) => {
+      console.log(`Generating audio for batch ${index + 1}...`)
 
-      const audio = await openai.createSpeech({
-        input: section.text,
-        model: 'tts-1-hd',
-        voice: 'alloy',
-        response_format: 'mp3'
-      })
+      let audio: ArrayBuffer
+
+      if (ttsEngine === 'openai') {
+        audio = await openai!.createSpeech({
+          input: batch.text,
+          model: 'tts-1-hd',
+          voice: openaiVoice,
+          response_format: 'mp3'
+        })
+      } else {
+        const res = await unrealSpeech!.speech({
+          text: batch.text,
+          voiceId: unrealSpeechVoice
+        })
+        console.log(res)
+
+        audio = await ky.get(res.OutputUri).arrayBuffer()
+      }
 
       const filenameBase = `${index}`.padStart(audioPadding, '0')
       await fs.writeFile(
@@ -103,7 +154,7 @@ ${text}`.slice(0, 4095) // TODO: break up by paragraphs and then by sentences
         Buffer.from(audio)
       )
     },
-    { concurrency: 4 }
+    { concurrency: 16 }
   )
 }
 
