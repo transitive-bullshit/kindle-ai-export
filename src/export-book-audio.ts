@@ -4,6 +4,9 @@ import 'dotenv/config'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { OpenAIClient } from 'openai-fetch'
+import pMap from 'p-map'
+
 import type { BookMetadata, ContentChunk } from './types'
 import { assert, getEnv } from './utils'
 
@@ -12,6 +15,8 @@ async function main() {
   assert(asin, 'ASIN is required')
 
   const outDir = path.join('out', asin)
+  const audioOutDir = path.join(outDir, 'audio')
+  await fs.mkdir(audioOutDir, { recursive: true })
 
   const content = JSON.parse(
     await fs.readFile(path.join(outDir, 'content.json'), 'utf8')
@@ -23,42 +28,22 @@ async function main() {
   assert(metadata.meta, 'invalid book metadata: missing meta')
   assert(metadata.toc?.length, 'invalid book metadata: missing toc')
 
+  const openai = new OpenAIClient()
+
   const title = metadata.meta.title
   const authors = metadata.meta.authorList
 
-  let lastTocItemIndex = 0
-  for (let i = 0, index = 0; i < metadata.toc.length - 1; i++) {
-    const tocItem = metadata.toc[i]!
-    if (tocItem.page === undefined) continue
+  const sections: Array<{
+    title: string
+    text: string
+  }> = []
 
-    const nextTocItem = metadata.toc[i + 1]!
-    const nextIndex = nextTocItem.page
-      ? content.findIndex((c) => c.page >= nextTocItem.page!)
-      : content.length
-    if (nextIndex < index) continue
+  sections.push({
+    title,
+    text: `# ${title}
 
-    lastTocItemIndex = i
-  }
-
-  let output = `# ${title}
-
-By ${authors.join(', ')}
-
----
-
-## Table of Contents
-
-${metadata.toc
-  .filter(
-    (tocItem, index) => tocItem.page !== undefined && index <= lastTocItemIndex
-  )
-  .map(
-    (tocItem) =>
-      `- [${tocItem.title}](#${tocItem.title.toLowerCase().replaceAll(/[^\da-z]+/g, '-')})`
-  )
-  .join('\n')}
-
----`
+By ${authors.join(', ')}`
+  })
 
   for (let i = 0, index = 0; i < metadata.toc.length - 1; i++) {
     const tocItem = metadata.toc[i]!
@@ -70,6 +55,7 @@ ${metadata.toc
       : content.length
     if (nextIndex < index) continue
 
+    // const chunks = content.slice(index, Math.min(nextIndex, index + 2)) // for preview
     const chunks = content.slice(index, nextIndex)
 
     const text = chunks
@@ -77,15 +63,39 @@ ${metadata.toc
       .join(' ')
       .replaceAll('\n', '\n\n')
 
-    output += `
+    sections.push({
+      title: tocItem.title,
+      text: `## ${tocItem.title}
 
-## ${tocItem.title}
+${text}`.slice(0, 4095) // TODO: break up by paragraphs and then by sentences
+    })
 
-${text}`
+    // TODO
+    break
   }
 
-  await fs.writeFile(path.join(outDir, 'book.md'), output)
-  console.log(output)
+  const audioPadding = `${sections.length}`.length
+
+  await pMap(
+    sections,
+    async (section, index) => {
+      console.log(`Generating audio for section ${index + 1}...`)
+
+      const audio = await openai.createSpeech({
+        input: section.text,
+        model: 'tts-1-hd',
+        voice: 'alloy',
+        response_format: 'mp3'
+      })
+
+      const filenameBase = `${index}`.padStart(audioPadding, '0')
+      await fs.writeFile(
+        `${audioOutDir}/${filenameBase}.mp3`,
+        Buffer.from(audio)
+      )
+    },
+    { concurrency: 4 }
+  )
 }
 
 try {

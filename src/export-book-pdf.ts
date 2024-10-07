@@ -79,9 +79,9 @@ async function main() {
     if (needsNewPage) {
       doc.addPage()
     }
-    // const chunks = content.slice(index, Math.min(nextIndex, index + 2)) // for preview
-    const chunks = content.slice(index, nextIndex)
 
+    // Aggregate all of the chunks in this chapter into a single string.
+    const chunks = content.slice(index, nextIndex)
     const text = chunks.map((chunk) => chunk.text).join(' ')
 
     ;(doc as any).outline.addItem(tocItem.title)
@@ -99,13 +99,7 @@ async function main() {
 
     index = nextIndex
     needsNewPage = true
-    // break
   }
-
-  // for preview
-  // doc.addPage()
-  // doc.fontSize(20)
-  // doc.text('(End of Preview)', { align: 'center', lineGap: 16 })
 
   doc.end()
   await new Promise((resolve, reject) => {
