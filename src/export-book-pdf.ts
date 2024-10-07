@@ -101,7 +101,7 @@ async function main() {
     await fsp.readFile(path.join(outDir, 'metadata.json'), 'utf8')
   ) as Metadata
 
-  const title = metadata.meta.title + '\n(Preview)'
+  const title = metadata.meta.title // + '\n(Preview)'
   const author = metadata.meta.authorList.join('\n')
 
   const doc = new PDFDocument({
@@ -154,7 +154,8 @@ async function main() {
     if (needsNewPage) {
       doc.addPage()
     }
-    const chunks = content.slice(index, Math.min(nextIndex, index + 2))
+    // const chunks = content.slice(index, Math.min(nextIndex, index + 2)) // for preview
+    const chunks = content.slice(index, nextIndex)
 
     const text = chunks
       .map((chunk) => chunk.text)
@@ -177,12 +178,13 @@ async function main() {
 
     index = nextIndex
     needsNewPage = true
-    break
+    // break
   }
 
-  doc.addPage()
-  doc.fontSize(20)
-  doc.text('(End of Preview)', { align: 'center', lineGap: 16 })
+  // for preview
+  // doc.addPage()
+  // doc.fontSize(20)
+  // doc.text('(End of Preview)', { align: 'center', lineGap: 16 })
 
   doc.end()
   await new Promise((resolve, reject) => {

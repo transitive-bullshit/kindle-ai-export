@@ -170,7 +170,7 @@ Sylveste stood on the edge of the excavation and wondered if any of his labours 
 
 We do this for every page of the book (accounting for chapters, metadata, and special cases), and then we can easily export the result.
 
-The [examples folder](./examples/B0819W19WD) contains a **PREVIEW** of the first page of [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds). (_I didn't include the full export in the repo to respect the author's copyright_, but this should be enough for you to get a feel for what the output looks like).
+The [examples folder](./examples/B0819W19WD) contains a **PREVIEW** of the first page of [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds). (I didn't include the full export in the repo to respect the author's copyright, but this should be enough for you to get a feel for what the output looks like).
 
 - [preview PDF output](./examples/B0819W19WD/book-preview.pdf)
 - [preview EPUB output](./examples/B0819W19WD/book-preview.epub)
