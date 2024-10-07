@@ -20,6 +20,7 @@
 - [Disclaimer](#disclaimer)
 - [Author's Notes](#authors-notes)
   - [Alternative Approaches](#alternative-approaches)
+- [How is the accuracy?](#how-is-the-accuracy)
 - [Example](#example)
 - [License](#license)
 
@@ -34,6 +35,8 @@ The [examples directory](./examples/B0819W19WD) contains a preview export of the
 ### How does it work?
 
 It works by logging into your [Kindle web reader](https://read.amazon.com) account using [Playwright](https://playwright.dev), exporting each page of a book as a PNG image, and then using a vLLM (`gpt-4o` or `gpt-4o-mini`) to transcribe the text from each page to text. Once we have the raw book contents and metadata, then it's easy to convert it to PDF, EPUB, etc. 🔥
+
+This [example](./examples/B0819W19WD) uses the first page of the scifi book [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds):
 
 <table>
   <tbody>
@@ -76,24 +79,16 @@ It works by logging into your [Kindle web reader](https://read.amazon.com) accou
 
 </td>
 </tr>
+    <tr>
+      <td>
+        We now have full access to the book's contents and metadata, so we can export it as a PDF or EPUB.
+      </td>
+      <td>
+        <a href="./examples/B0819W19WD/book-preview.pdf">Preview of the PDF output</a> containing only the first page of the book for example purposes.
+      </td>
+    </tr>
   </tbody>
 </table>
-
----
-
-<p align="center">
-  <img alt="Kindle web reader page" src="./examples/B0819W19WD/kindle-reader-library-example.jpg" width="45%">
-&nbsp; &nbsp; ⇒ &nbsp; &nbsp;
-  <img alt="Screenshot of page contents" src="./examples/B0819W19WD/pages/0000-0001.png" width="45%">
-</p>
-
-<p align="center">
-  <img alt="Kindle web reader page" src="./examples/B0819W19WD/kindle-reader-page-example.png" width="45%">
-&nbsp; &nbsp; ⇒ &nbsp; &nbsp;
-  <img alt="Screenshot of page contents" src="./examples/B0819W19WD/pages/0000-0001.png" width="45%">
-</p>
-
-The accuracy has been very close to perfect in my testing, with the only discrepancies being occasional whitespace issues.
 
 > [!NOTE] > _(Exporting audio books with AI-generated voice narration is coming soon! Please star the repo if you're interested in this feature.)_
 
@@ -200,6 +195,10 @@ Compared with these approaches, the approach used by this project is much easier
 The main downside is that it's possible for some transcription errors to occur during the `image ⇒ text` step - which uses a multimodal LLM and is not 100% deterministic. In my testing, I've been remarkably surprised with how accurate the results are, but there are occasional issues mostly with differentiating whitespace between paragraphs versus soft section breaks. Note that both Calibre and Epubor also use heuristics to deal with things like spacing and dashes used by wordwrap, so the fidelity of the conversions will not be 100% one-to-one with the original Kindle version in any case.
 
 The other downside is that the **LLM costs add up to a few dollars per book using `gpt-4o`** or **around 30 cents per book using `gpt-4o-mini`**. With LLM costs constantly decreasing and local vLLMs, this cost per book should be free or almost free soon. The screenshots are also really good quality with no extra content, so you could swap any other OCR solution for the vLLM-based `image ⇒ text` quite easily.
+
+## How is the accuracy?
+
+The accuracy has been very close to perfect in my testing, with the only discrepancies being occasional whitespace issues.
 
 ## Example
 
