@@ -134,6 +134,8 @@ If you want, you can use [Calibre](https://calibre-ebook.com) to convert your bo
 ebook-convert out/B0819W19WD/book.pdf out/B0819W19WD/book.epub --enable-heuristics
 ```
 
+_([ebook-convert docs](https://manual.calibre-ebook.com/generated/en/ebook-convert.html))_
+
 ## Disclaimer
 
 **This project is intended purely for personal and educational use only**. It is not endorsed or supported by Amazon / Kindle. By using this project, you agree to not hold the author or contributors responsible for any consequences resulting from its usage.
