@@ -7,9 +7,9 @@ import path from 'node:path'
 import ky from 'ky'
 import { OpenAIClient } from 'openai-fetch'
 import pMap from 'p-map'
+import { UnrealSpeechClient } from 'unrealspeech-api'
 
 import type { BookMetadata, ContentChunk } from './types'
-import { UnrealSpeechClient } from './unreal-speech-client'
 import { assert, getEnv } from './utils'
 
 type TTSEngine = 'openai' | 'unrealspeech'

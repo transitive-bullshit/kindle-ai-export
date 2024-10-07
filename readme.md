@@ -133,7 +133,7 @@ npx tsx src/extract-kindle-book.ts
 ```
 
 - **This takes a few minutes to run.**
-- This logs into your [Amazon Kindle web reader](https://read.amazon.com) using headless Chrome ([Playwright](https://playwright.dev)). It can be pretty fun to watch it run, though, so feel free to tweak the script to use `headless: false` if you want to understand what it's doing or debug things.
+- This logs into your [Amazon Kindle web reader](https://read.amazon.com) using headless Chrome ([Playwright](https://playwright.dev)). It can be pretty fun to watch it run, so feel free to tweak the script to use `headless: false` to watch it do its thing.
 - If your account requires 2FA, the terminal will request a code from you before proceeding.
 - It uses a persistent browser session, so you should only have to auth once.
 - Once logged in, it navigates to the web reader page for a specific book (`https://read.amazon.com/?asin=${ASIN}`).
