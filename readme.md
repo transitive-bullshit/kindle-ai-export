@@ -41,20 +41,32 @@ The accuracy has been very close to perfect in my testing, with the only discrep
   <tbody>
     <tr>
       <td>
-        <img src="./examples/B0819W19WD/kindle-reader-library-example.jpg" alt="Kindle web reader library" width="640">
+        We start from the Kindle web reader library.
+      </td>
+      <td>
+        <img src="./examples/B0819W19WD/kindle-reader-library-example.jpg" alt="Kindle web reader library">
       </td>
     </tr>
     <tr>
       <td>
-        <img src="./examples/B0819W19WD/kindle-reader-page-example.png" alt="Kindle web reader page" width="640">
+        We use Playwright to navigate to each page of the selected book.
+      </td>
+      <td>
+        <img src="./examples/B0819W19WD/kindle-reader-page-example.png" alt="Kindle web reader page">
       </td>
     </tr>
     <tr>
       <td>
-        <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds" width="640">
+        We use Playwright to take a screenshot of each page of the selected book.
+      </td>
+      <td>
+        <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds">
       </td>
     </tr>
     <tr>
+      <td>
+        Then we convert each page screenshot into text using one of OpenAI's vLLMs.
+      </td>
       <td>
 **Mantell Sector, North Nekhebet, Resurgam, Delta Pavonis system, 2551**
 
@@ -66,11 +78,16 @@ Sylveste stood on the edge of the excavation and wondered if any of his labours 
 
 </td>
 </tr>
-
   </tbody>
 </table>
 
 ---
+
+<p align="center">
+  <img alt="Kindle web reader page" src="./examples/B0819W19WD/kindle-reader-library-example.jpg" width="45%">
+&nbsp; &nbsp; ⇒ &nbsp; &nbsp;
+  <img alt="Screenshot of page contents" src="./examples/B0819W19WD/pages/0000-0001.png" width="45%">
+</p>
 
 <p align="center">
   <img alt="Kindle web reader page" src="./examples/B0819W19WD/kindle-reader-page-example.png" width="45%">
