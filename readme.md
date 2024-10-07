@@ -1,6 +1,6 @@
 # kindle-ai-export <!-- omit from toc -->
 
-> Export any Kindle book you own as text, PDF, EPUB, or an AI-narrated audiobook!
+> Export any Kindle book you own as text, PDF, EPUB, or as an AI-narrated audiobook. 🔥
 
 <p>
   <a href="https://github.com/transitive-bullshit/kindle-ai-export/actions/workflows/main.yml"><img alt="Build Status" src="https://github.com/transitive-bullshit/kindle-ai-export/actions/workflows/main.yml/badge.svg" /></a>
@@ -25,7 +25,7 @@
 
 ## Intro
 
-This project makes it easy to export the contents of any ebook in your Kindle library as text, PDF, EPUB, or as an AI-narrated audiobook. It only requires a valid Amazon Kindle account and an OpenAI API key.
+This project makes it easy to export the contents of any ebook in your Kindle library as text, PDF, EPUB, or as a custom, AI-narrated audiobook. It only requires a valid Amazon Kindle account and an OpenAI API key.
 
 _You must own the ebook on Kindle for this project to work._
 
