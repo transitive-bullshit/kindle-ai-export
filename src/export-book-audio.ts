@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import 'dotenv/config'
 
 import fs from 'node:fs/promises'
@@ -17,6 +16,7 @@ type TTSEngine = 'openai' | 'unrealspeech'
 async function main() {
   const asin = getEnv('ASIN')
   assert(asin, 'ASIN is required')
+  const force = getEnv('FORCE') === 'true'
 
   const outDir = path.join('out', asin)
   const audioOutDir = path.join(outDir, 'audio')
@@ -127,7 +127,20 @@ ${text}`.split('\n\n')
   await pMap(
     batches,
     async (batch, index) => {
-      console.log(`Generating audio for batch ${index + 1}...`)
+      const audioBaseFilename = `${index}`.padStart(audioPadding, '0')
+      const audioFilePath = path.join(audioOutDir, `${audioBaseFilename}.mp3`)
+
+      // Don't recreate the audio file for this batch if it already exists.
+      // Allow `process.env.FORCE` to override this behavior.
+      if (
+        !force &&
+        (await fs.access(audioFilePath, fs.constants.F_OK | fs.constants.R_OK))
+      ) {
+        console.log(`Skipping audio batch ${index + 1}: ${audioFilePath}`)
+        return
+      }
+
+      console.log(`Generating audio batch ${index + 1}: ${audioFilePath}`)
 
       let audio: ArrayBuffer
 
@@ -148,11 +161,7 @@ ${text}`.split('\n\n')
         audio = await ky.get(res.OutputUri).arrayBuffer()
       }
 
-      const filenameBase = `${index}`.padStart(audioPadding, '0')
-      await fs.writeFile(
-        `${audioOutDir}/${filenameBase}.mp3`,
-        Buffer.from(audio)
-      )
+      await fs.writeFile(audioFilePath, Buffer.from(audio))
     },
     { concurrency: 16 }
   )
