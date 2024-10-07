@@ -112,7 +112,7 @@ Run `npx tsx src/export-book-pdf.ts` to export your book as a PDF.
 
 ### (Optional) Export Book as EPUB
 
-If you want, you can use [Calibre](https://calibre-ebook.com) to convert your book's PDF to the EPUB ebook format.
+If you want, you can use [Calibre](https://calibre-ebook.com) to convert your book's PDF to the EPUB ebook format. On a Mac, you can install `calibre` using Homebrew (`brew install --cask calibre`).
 
 ```sh
 # replace B0819W19WD with your book's ASIN
