@@ -81,7 +81,7 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
 </tr>
     <tr>
       <td>
-        We now have full access to the book's contents and metadata, so we can export it as a PDF or EPUB.
+        We now have full access to the book's contents and metadata, so we can export it in any format we want. 🎉
       </td>
       <td>
         <a href="./examples/B0819W19WD/book-preview.pdf">Preview of the PDF output</a> containing only the first page of the book for example purposes.
