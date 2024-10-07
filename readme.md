@@ -20,6 +20,7 @@
 - [Disclaimer](#disclaimer)
 - [Author's Notes](#authors-notes)
   - [Alternative Approaches](#alternative-approaches)
+- [Example](#example)
 - [License](#license)
 
 ## Intro
@@ -35,28 +36,6 @@ It works by logging into your [Kindle web reader](https://read.amazon.com) accou
 The accuracy has been very close to perfect in my testing, with the only discrepancies being occasional whitespace issues.
 
 _(Exporting audio books with AI-generated voice narration is coming soon! Please star the repo if you're interested in this feature.)_
-
-Here's an [example](./examples/B0819W19WD) using the first page of the scifi book [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds):
-
-<p align="center">
-  <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds" width="600">
-</p>
-
-This image gets converted to the following text using a vLLM:
-
-```md
-**Mantell Sector, North Nekhebet, Resurgam, Delta Pavonis system, 2551**
-
-There was a razorstorm coming in.
-
-Sylveste stood on the edge of the excavation and wondered if any of his labours would survive the night. The archaeological dig was an array of deep square shafts separated by baulks of sheer-sided soil: the classical Wheeler box-grid. The shafts went down tens of metres, walled by transparent cofferdams spun from hyperdiamond. A million years of stratified geological history pressed against the sheets. But it would take only one good dustfall—one good razorstorm—to fill the shafts almost to the surface.
-
-“Confirmation, sir,” said one of his team, emerging from the crouched form of the first crawler. The man’s voice was muffled behind his breather mask. “Cuvier’s just issued a severe weather advisory for the whole North
-```
-
-We do this for every page of the book (accounting for chapters, metadata, and special cases), and then we can easily export the result.
-
-The [examples folder](./examples/B0819W19WD) contains a **PREVIEW** of the first page[Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds), including the [preview PDF](./examples/B0819W19WD/book-preview.pdf) and [preview EPUB](./examples/B0819W19WD/book-preview.epub) – all generated with this project. (_I didn't include the full export in the repo to respect the author's copyright_, but this should be enough for you to get a feel for what the output looks like).
 
 ### Why is this necessary?
 
@@ -161,6 +140,42 @@ The main downside is that it's possible for some transcription errors to occur d
 
 The other downside is that the **LLM costs add up to a few dollars per book using `gpt-4o`** or **around 30 cents per book using `gpt-4o-mini`**. With LLM costs constantly decreasing and local vLLMs, this cost per book should be free or almost free soon. The screenshots are also really good quality with no extra content, so you could swap any other OCR solution for the vLLM-based `image ⇒ text` quite easily.
 
+## Example
+
+Here's an [example](./examples/B0819W19WD) using the first page of the scifi book [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds):
+
+<table>
+  <tr>
+  <td align="center">
+    <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds" width="640">
+  </td>
+  </tr>
+</table>
+
+---
+
+<p align="center">
+  <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds" width="640">
+</p>
+
+This image gets converted to the following text using a vLLM:
+
+```md
+**Mantell Sector, North Nekhebet, Resurgam, Delta Pavonis system, 2551**
+
+There was a razorstorm coming in.
+
+Sylveste stood on the edge of the excavation and wondered if any of his labours would survive the night. The archaeological dig was an array of deep square shafts separated by baulks of sheer-sided soil: the classical Wheeler box-grid. The shafts went down tens of metres, walled by transparent cofferdams spun from hyperdiamond. A million years of stratified geological history pressed against the sheets. But it would take only one good dustfall—one good razorstorm—to fill the shafts almost to the surface.
+
+“Confirmation, sir,” said one of his team, emerging from the crouched form of the first crawler. The man’s voice was muffled behind his breather mask. “Cuvier’s just issued a severe weather advisory for the whole North
+```
+
+We do this for every page of the book (accounting for chapters, metadata, and special cases), and then we can easily export the result.
+
+The [examples folder](./examples/B0819W19WD) contains a **PREVIEW** of the first page[Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds), including the [preview PDF](./examples/B0819W19WD/book-preview.pdf) and [preview EPUB](./examples/B0819W19WD/book-preview.epub) – all generated with this project. (_I didn't include the full export in the repo to respect the author's copyright_, but this should be enough for you to get a feel for what the output looks like).
+
 ## License
 
 MIT © [Travis Fischer](https://x.com/transitive_bs)
+
+If you found this project interesting, [consider following me on Twitter](https://x.com/transitive_bs).
