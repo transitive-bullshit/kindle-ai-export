@@ -56,7 +56,7 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
     </tr>
     <tr>
       <td>
-        Playwright exports a scaled down PNG screenshot of each page's rendered content, bypassing Kindle's DRM.
+        For each page, we use Playwright to export a scaled down PNG screenshot of the page's rendered content, bypassing Kindle's DRM.
       </td>
       <td>
         <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds">
@@ -64,7 +64,7 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
     </tr>
     <tr>
       <td>
-        Then we convert each page's screenshot into text using one of OpenAI's vLLMs (<strong>gpt-4o</strong> or <strong>gpt-4o-mini</strong>).
+        We then convert each page's screenshot into text using one of OpenAI's vLLMs (<strong>gpt-4o</strong> or <strong>gpt-4o-mini</strong>).
       </td>
       <td>
 <p>Mantell Sector, North Nekhebet, Resurgam, Delta Pavonis system, 2551</p>
