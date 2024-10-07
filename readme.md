@@ -100,7 +100,7 @@ The [examples folder](./examples/B0819W19WD) contains a **PREVIEW** of the outpu
 
 This project changes that.
 
-_Why?_ Because I LOVE reading science fiction and my library lives on Kindle, but none of the content is _hackable_. The official Kindle apps are lagging behind in their AI features, so my goal with this project was to make it easy to build AI-powered experiments on top of my own Kindle library. In order to do that, I first needed a reliable way to export the contents of my Kindle books in a reasonable format.
+_Why?_ Because I love reading scifi on Kindle, but none of the content is _hackable_. The official Kindle apps are also lagging behind in their AI features, so my goal with this project was to make it easy to build AI-powered experiments on top of my own Kindle library. In order to do that, I first needed a reliable way to export the contents of my Kindle books in a reasonable format.
 
 I also created an [OSS TypeScript client for the unofficial Kindle API](https://github.com/transitive-bullshit/kindle-api), but I ended up only using some of the types and utils since Playwright + vLLMs allowed me to completely bypass their unofficial API and DRM. It also should be a lot less error-prone than using their unofficial API.
 
