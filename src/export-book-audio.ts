@@ -34,7 +34,7 @@ async function main() {
   const authors = metadata.meta.authorList
 
   const sections: Array<{
-    title: string
+    title?: string
     text: string
   }> = []
 
@@ -44,6 +44,8 @@ async function main() {
 
 By ${authors.join(', ')}`
   })
+
+  // $30.000 / 1M characters
 
   for (let i = 0, index = 0; i < metadata.toc.length - 1; i++) {
     const tocItem = metadata.toc[i]!
@@ -55,7 +57,6 @@ By ${authors.join(', ')}`
       : content.length
     if (nextIndex < index) continue
 
-    // const chunks = content.slice(index, Math.min(nextIndex, index + 2)) // for preview
     const chunks = content.slice(index, nextIndex)
 
     const text = chunks
@@ -63,12 +64,20 @@ By ${authors.join(', ')}`
       .join(' ')
       .replaceAll('\n', '\n\n')
 
+    const chapterChunks: string[] = []
+
+    chapterChunks.push(`## ${tocItem.title}
+
+${text}`)
+
     sections.push({
       title: tocItem.title,
       text: `## ${tocItem.title}
 
 ${text}`.slice(0, 4095) // TODO: break up by paragraphs and then by sentences
     })
+
+    index = nextIndex
 
     // TODO
     break

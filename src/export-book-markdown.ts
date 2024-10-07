@@ -82,6 +82,8 @@ ${metadata.toc
 ## ${tocItem.title}
 
 ${text}`
+
+    index = nextIndex
   }
 
   await fs.writeFile(path.join(outDir, 'book.md'), output)
