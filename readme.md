@@ -176,6 +176,12 @@ The [examples folder](./examples/B0819W19WD) contains a **PREVIEW** of the first
 
 <embed src="https://github.com/user-attachments/files/17271746/book-preview.pdf" type="application/pdf" />
 
+<object data="" type="application/pdf" width="700px" height="700px">
+    <embed src="https://github.com/user-attachments/files/17271746/book-preview.pdf">
+        <p>This browser does not support PDFs. Please download the PDF to view it: <a href="https://github.com/user-attachments/files/17271746/book-preview.pdf">Download PDF</a>.</p>
+    </embed>
+</object>
+
 ## License
 
 MIT © [Travis Fischer](https://x.com/transitive_bs)
