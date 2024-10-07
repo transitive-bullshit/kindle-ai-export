@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-/* eslint-disable no-process-env */
 import 'dotenv/config'
 
 import fs from 'node:fs/promises'
@@ -9,7 +7,7 @@ import { globby } from 'globby'
 import { OpenAIClient } from 'openai-fetch'
 import pMap from 'p-map'
 
-import { assert } from './utils'
+import { assert, getEnv } from './utils'
 
 type ContentChunk = {
   index: number
@@ -19,7 +17,7 @@ type ContentChunk = {
 }
 
 async function main() {
-  const asin = process.env.ASIN
+  const asin = getEnv('ASIN')
   assert(asin, 'ASIN is required')
 
   const outDir = path.join('out', asin)
@@ -121,9 +119,4 @@ Do not include any additional text, descriptions, or punctuation. Ignore any emb
   console.log(JSON.stringify(results, null, 2))
 }
 
-try {
-  await main()
-} catch (err) {
-  console.error('error', err)
-  process.exit(1)
-}
+await main()

@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-/* eslint-disable no-process-env */
 import 'dotenv/config'
 
 import fs from 'node:fs/promises'
@@ -12,6 +10,7 @@ import { chromium, type Locator } from 'playwright'
 import {
   assert,
   deromanize,
+  getEnv,
   normalizeAuthors,
   parseJsonpResponse
 } from './utils'
@@ -35,9 +34,9 @@ interface PageChunk {
 }
 
 async function main() {
-  const asin = process.env.ASIN
-  const amazonEmail = process.env.AMAZON_EMAIL
-  const amazonPassword = process.env.AMAZON_PASSWORD
+  const asin = getEnv('ASIN')
+  const amazonEmail = getEnv('AMAZON_EMAIL')
+  const amazonPassword = getEnv('AMAZON_PASSWORD')
   assert(asin, 'ASIN is required')
   assert(amazonEmail, 'AMAZON_EMAIL is required')
   assert(amazonPassword, 'AMAZON_PASSWORD is required')
@@ -489,9 +488,4 @@ function parseTocItems(tocItems: TocItem[]) {
 //   }
 // )
 
-try {
-  await main()
-} catch (err) {
-  console.error('error', err)
-  process.exit(1)
-}
+await main()

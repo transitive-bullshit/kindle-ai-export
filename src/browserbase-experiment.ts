@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-/* eslint-disable no-process-env */
 import 'dotenv/config'
 
 import fs from 'node:fs/promises'
@@ -7,7 +5,7 @@ import fs from 'node:fs/promises'
 import { input } from '@inquirer/prompts'
 import { chromium } from 'playwright-core'
 
-import { assert } from './utils'
+import { assert, getEnv } from './utils'
 
 // TODO: kindle pages don't seem to render properly in headless playwright,
 // possibly due to webgl usage in the text renderer?
@@ -16,11 +14,11 @@ async function createSession() {
   const res = await fetch('https://www.browserbase.com/v1/sessions', {
     method: 'POST',
     headers: {
-      'x-bb-api-key': `${process.env.BROWSERBASE_API_KEY}`,
+      'x-bb-api-key': `${getEnv('BROWSERBASE_API_KEY')}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      projectId: process.env.BROWSERBASE_PROJECT_ID,
+      projectId: getEnv('BROWSERBASE_PROJECT_ID'),
       proxies: true
       // TODO: browserbase fingerprint docs seem to be broken
       // fingerprint: {
@@ -35,15 +33,15 @@ async function createSession() {
 }
 
 async function main() {
-  const amazonEmail = process.env.AMAZON_EMAIL
-  const amazonPassword = process.env.AMAZON_PASSWORD
+  const amazonEmail = getEnv('AMAZON_EMAIL')
+  const amazonPassword = getEnv('AMAZON_PASSWORD')
   assert(amazonEmail, 'AMAZON_EMAIL is required')
   assert(amazonPassword, 'AMAZON_PASSWORD is required')
 
   const session = await createSession()
   console.log(session)
   const browser = await chromium.connectOverCDP(
-    `wss://connect.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}&sessionId=${session.id}`
+    `wss://connect.browserbase.com?apiKey=${getEnv('BROWSERBASE_API_KEY')}&sessionId=${session.id}`
   )
 
   // Getting the default context to ensure the sessions are recorded.
@@ -98,9 +96,4 @@ async function main() {
   await browser.close()
 }
 
-try {
-  await main()
-} catch (err) {
-  console.error('error', err)
-  process.exit(1)
-}
+await main()
