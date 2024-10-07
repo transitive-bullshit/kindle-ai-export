@@ -24,13 +24,15 @@
 
 ## Intro
 
-This project makes it easy to export the contents of any Kindle ebook in your library as text, PDF, EPUB, or as a custom, narrated audiobook.
+This project makes it easy to export the contents of any ebook in your Kindle library as text, PDF, EPUB, or as a narrated audiobook.
 
-**You must own the ebook on Kindle for this project to work.**
+_You must own the ebook on Kindle for this project to work._
 
 ### How does it work?
 
 It works by logging into your [Kindle web reader](https://read.amazon.com) account using [Playwright](https://playwright.dev), exporting each page of a book as a PNG image, and then using a vLLM (`gpt-4o` or `gpt-4o-mini`) to transcribe the text from each page to text. Once we have the raw book contents and metadata, then it's easy to convert it to PDF, EPUB, etc. 🔥
+
+The accuracy has been very close to perfect in my testing, with the only discrepancies being occasional whitespace issues.
 
 _(Exporting audio books with AI-generated voice narration is coming soon! Please star the repo if you're interested in this feature.)_
 
@@ -58,7 +60,7 @@ The [examples folder](./examples/B0819W19WD) contains a **PREVIEW** of the first
 
 ### Why is this necessary?
 
-**Kindle uses a [custom AZW3 format](https://en.wikipedia.org/wiki/Kindle_File_Format) which includes heavy DRM**, making it very difficult to access the contents of ebooks that you own. It is possible to [strip the DRM using existing tools](#alternative-approaches), but it's a pain in the ass, is very difficult to automate, and the "best" solution is expensive and not open source. Trying to use an [online converter](https://cloudconvert.com/azw3-to-pdf) will throw a DRM error.
+**Kindle uses a [custom AZW3 format](https://en.wikipedia.org/wiki/Kindle_File_Format) which includes heavy DRM**, making it very difficult to access the contents of ebooks that you own. It is possible to [strip the DRM using existing tools](#alternative-approaches), but it's a pain in the ass, is very difficult to automate, and the "best" solution is expensive and not open source.
 
 This project changes that.
 
@@ -151,7 +153,7 @@ I expect that Amazon Kindle will eventually get around to supporting some modern
 
 ### Alternative Approaches
 
-If you want to explore other ways of exporting your personal ebooks from Kindle, [this article](https://www.digitaltrends.com/mobile/how-to-convert-kindle-to-pdf/) gives a great breakdown of the options available, including [Calibre](https://calibre-ebook.com) (FOSS) and [Epubor Ultimate](https://www.epubor.com/ultimate.html) (paid).
+If you want to explore other ways of exporting your personal ebooks from Kindle, [this article](https://www.digitaltrends.com/mobile/how-to-convert-kindle-to-pdf/) gives a great breakdown of the options available, including [Calibre](https://calibre-ebook.com) (FOSS) and [Epubor Ultimate](https://www.epubor.com/ultimate.html) (paid). Trying to use the most popular [free online converter](https://cloudconvert.com/azw3-to-pdf) will throw a DRM error.
 
 Compared with these approaches, the approach used by this project is much easier to automate. It also retains metadata about Kindle's original sync positions which is very useful for cases where you'd like to interoperate with Kindle. E.g., be able to jump from reading a Kindle book to listening to an AI-generated narration on a walk and then jumping back to reading the Kindle book and having the sync positions "just work".
 
