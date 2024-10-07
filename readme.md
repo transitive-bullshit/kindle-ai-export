@@ -172,6 +172,8 @@ We do this for every page of the book (accounting for chapters, metadata, and sp
 
 The [examples folder](./examples/B0819W19WD) contains a **PREVIEW** of the first page[Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds), including the [preview PDF](./examples/B0819W19WD/book-preview.pdf) and [preview EPUB](./examples/B0819W19WD/book-preview.epub) – all generated with this project. (_I didn't include the full export in the repo to respect the author's copyright_, but this should be enough for you to get a feel for what the output looks like).
 
+![Book Preview PDF](./examples/B0819W19WD/book-preview.pdf)
+
 ## License
 
 MIT © [Travis Fischer](https://x.com/transitive_bs)
