@@ -163,7 +163,7 @@ npx tsx src/export-book-pdf.ts
 ```
 
 - This should run almost instantly.
-- It uses [PDFKit](https://github.com/foliojs/pdfkit) under the hood to export your book as a PDF.
+- It uses [PDFKit](https://github.com/foliojs/pdfkit) under the hood.
 - It includes a valid table of contents for easy navigation.
 - The result is stored to `out/${asin}/book.pdf`.
 
