@@ -51,7 +51,7 @@ async function main() {
   const bookReaderUrl = `https://read.amazon.com/?asin=${asin}`
 
   const context = await chromium.launchPersistentContext(userDataDir, {
-    headless: true,
+    headless: false,
     channel: 'chrome',
     executablePath:
       '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
