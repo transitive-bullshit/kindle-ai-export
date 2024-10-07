@@ -127,7 +127,9 @@ You can find your book's [ASIN](https://en.wikipedia.org/wiki/Amazon_Standard_Id
 
 ### Extract Kindle Book
 
-Run `npx tsx src/extract-kindle-book.ts`
+```sh
+npx tsx src/extract-kindle-book.ts
+```
 
 - **This takes a few minutes to run.**
 - This logs into your [Amazon Kindle web reader](https://read.amazon.com) using headless Chrome ([Playwright](https://playwright.dev)). It can be pretty fun to watch it run, though, so feel free to tweak the script to use `headless: false` if you want to understand what it's doing or debug things.
@@ -145,7 +147,9 @@ Run `npx tsx src/extract-kindle-book.ts`
 
 ### Transcribe Book Content
 
-Run `npx tsx src/transcribe-book-content.ts`
+```sh
+npx tsx src/transcribe-book-content.ts
+```
 
 - **This takes a few minutes to run.**
 - This takes each of the page screenshots and runs them through a vLLM (`gpt-4o` or `gpt-4o-mini`) to extract the raw text content from each page of the book.
@@ -154,10 +158,12 @@ Run `npx tsx src/transcribe-book-content.ts`
 
 ### Export Book as PDF
 
-Run `npx tsx src/export-book-pdf.ts` to export your book as a PDF.
+```sh
+npx tsx src/export-book-pdf.ts
+```
 
 - This should run almost instantly.
-- It uses [PDFKit](https://github.com/foliojs/pdfkit) under the hood.
+- It uses [PDFKit](https://github.com/foliojs/pdfkit) under the hood to export your book as a PDF.
 - It includes a valid table of contents for easy navigation.
 - The result is stored to `out/${asin}/book.pdf`.
 
