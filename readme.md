@@ -55,7 +55,7 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
     </tr>
     <tr>
       <td>
-        Playwright exports a scaled down PNG screenshot of each page's main content, bypassing Kindle's DRM.
+        Playwright exports a scaled down PNG screenshot of each page's rendered content, bypassing Kindle's DRM.
       </td>
       <td>
         <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds">
@@ -81,7 +81,7 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
         After doing this for each page, we now have access to the book's full contents and metadata, so we can export it in any format we want. 🎉
       </td>
       <td>
-        Here's a <a href="./examples/B0819W19WD/book-preview.pdf">preview of the PDF output</a> containing only the first page of the book for example purposes.
+        Here's a <a href="./examples/B0819W19WD/book-preview.pdf">preview of the PDF output</a> containing only the first page of this book for example purposes.
       </td>
     </tr>
   </tbody>
