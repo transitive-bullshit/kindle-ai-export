@@ -82,11 +82,7 @@ async function main() {
     // const chunks = content.slice(index, Math.min(nextIndex, index + 2)) // for preview
     const chunks = content.slice(index, nextIndex)
 
-    const text = chunks
-      .map((chunk) => chunk.text)
-      .join(' ')
-      .replaceAll(/\n+/g, '\n')
-      .replaceAll(/^\s*/gm, '')
+    const text = chunks.map((chunk) => chunk.text).join(' ')
 
     ;(doc as any).outline.addItem(tocItem.title)
     doc.fontSize(20)
