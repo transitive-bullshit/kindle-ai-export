@@ -29,6 +29,8 @@ This project makes it easy to export the contents of any ebook in your Kindle li
 
 _You must own the ebook on Kindle for this project to work._
 
+The [examples directory](./examples/B0819W19WD) contains a preview of the first page of output for the scifi book [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds), including the [preview PDF](./examples/B0819W19WD/book-preview.pdf).
+
 ### How does it work?
 
 It works by logging into your [Kindle web reader](https://read.amazon.com) account using [Playwright](https://playwright.dev), exporting each page of a book as a PNG image, and then using a vLLM (`gpt-4o` or `gpt-4o-mini`) to transcribe the text from each page to text. Once we have the raw book contents and metadata, then it's easy to convert it to PDF, EPUB, etc. 🔥
@@ -43,7 +45,7 @@ _(Exporting audio books with AI-generated voice narration is coming soon! Please
 
 This project changes that.
 
-_Why?_ Because I LOVE reading science fiction and my library lives on Kindle, but none of the content is _hackable_. The official Kindle apps are lagging way behind in their AI-powered features, so my goal with this project was to make it easy to build AI-powered experiments on top of my own Kindle library. In order to do that, I first needed a reliable way to export the contents of my Kindle books in a reasonable format.
+_Why?_ Because I LOVE reading science fiction and my library lives on Kindle, but none of the content is _hackable_. The official Kindle apps are lagging behind in their AI features, so my goal with this project was to make it easy to build AI-powered experiments on top of my own Kindle library. In order to do that, I first needed a reliable way to export the contents of my Kindle books in a reasonable format.
 
 I also created an [OSS TypeScript client for the unofficial Kindle API](https://github.com/transitive-bullshit/kindle-api), but I ended up only using some of the types and utils since Playwright + vLLMs allowed me to completely bypass their unofficial API and DRM. It also should be a lot less error-prone than using their unofficial API.
 
@@ -145,11 +147,13 @@ The other downside is that the **LLM costs add up to a few dollars per book usin
 Here's an [example](./examples/B0819W19WD) using the first page of the scifi book [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds):
 
 <table>
+<tbody>
   <tr>
   <td align="center">
     <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds" width="640">
   </td>
   </tr>
+  </tbody>
 </table>
 
 ---
