@@ -7,14 +7,8 @@ import { globby } from 'globby'
 import { OpenAIClient } from 'openai-fetch'
 import pMap from 'p-map'
 
+import type { ContentChunk } from './types'
 import { assert, getEnv } from './utils'
-
-type ContentChunk = {
-  index: number
-  page: number
-  text: string
-  screenshot: string
-}
 
 async function main() {
   const asin = getEnv('ASIN')

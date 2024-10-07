@@ -7,6 +7,7 @@ import { input } from '@inquirer/prompts'
 import delay from 'delay'
 import { chromium, type Locator } from 'playwright'
 
+import type { Info, Meta, Metadata, PageChunk } from './types'
 import {
   assert,
   deromanize,
@@ -24,13 +25,6 @@ interface PageNav {
 interface TocItem extends PageNav {
   title: string
   locator?: Locator
-}
-
-interface PageChunk {
-  index: number
-  page: number
-  total: number
-  screenshot: string
 }
 
 async function main() {
@@ -61,8 +55,8 @@ async function main() {
   })
   const page = await context.newPage()
 
-  let info: any
-  let meta: any
+  let info: Info | undefined
+  let meta: Meta | undefined
 
   page.on('response', async (response) => {
     try {
@@ -348,7 +342,7 @@ async function main() {
     } while (true)
   } while (true)
 
-  const result = { info, meta, toc, pages }
+  const result: Metadata = { info: info!, meta: meta!, toc, pages }
   await fs.writeFile(
     path.join(outDir, 'metadata.json'),
     JSON.stringify(result, null, 2)

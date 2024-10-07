@@ -6,87 +6,11 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 
+import type { Metadata } from 'playwright/test'
 import PDFDocument from 'pdfkit'
 
+import type { ContentChunk } from './types'
 import { assert } from './utils'
-
-interface ContentChunk {
-  index: number
-  page: number
-  text: string
-  screenshot: string
-}
-
-interface TocItem {
-  title: string
-  page?: number
-  location?: number
-  total: number
-}
-
-interface PageChunk {
-  index: number
-  page: number
-  total: number
-  screenshot: string
-}
-
-interface Meta {
-  ACR: string
-  asin: string
-  authorList: Array<string>
-  bookSize: string
-  bookType: string
-  cover: string
-  language: string
-  positions: {
-    cover: number
-    srl: number
-    toc: number
-  }
-  publisher: string
-  refEmId: string
-  releaseDate: string
-  sample: boolean
-  title: string
-  version: string
-  startPosition: number
-  endPosition: number
-}
-
-interface Info {
-  clippingLimit: number
-  contentChecksum: any
-  contentType: string
-  contentVersion: string
-  deliveredAsin: string
-  downloadRestrictionReason: any
-  expirationDate: any
-  format: string
-  formatVersion: string
-  fragmentMapUrl: any
-  hasAnnotations: boolean
-  isOwned: boolean
-  isSample: boolean
-  kindleSessionId: string
-  lastPageReadData: {
-    deviceName: string
-    position: number
-    syncTime: number
-  }
-  manifestUrl: any
-  originType: string
-  pageNumberUrl: any
-  requestedAsin: string
-  srl: number
-}
-
-interface Metadata {
-  info: Info
-  meta: Meta
-  toc: TocItem[]
-  pages: PageChunk[]
-}
 
 async function main() {
   const asin = process.env.ASIN
