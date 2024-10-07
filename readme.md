@@ -91,7 +91,8 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
 
 The [examples folder](./examples/B0819W19WD) contains a **PREVIEW** of the output for the first page of [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds). It only contains the first page because I wanted to respect the author's copyright, but this should be enough for you to get a feel for what the output looks like.
 
-> [!NOTE] > _(Exporting audio books with AI-generated voice narration is coming soon! Please star the repo if you're interested in this feature.)_
+> [!NOTE]
+> Exporting audio books with AI-generated voice narration is coming soon! Please star the repo if you're interested in this feature.
 
 ### Why is this necessary?
 
