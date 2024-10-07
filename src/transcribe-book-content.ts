@@ -21,7 +21,7 @@ async function main() {
 
   const openai = new OpenAIClient()
 
-  const results: ContentChunk[] = (
+  const content: ContentChunk[] = (
     await pMap(
       pageScreenshots,
       async (screenshot) => {
@@ -40,6 +40,7 @@ async function main() {
         )
 
         try {
+          const maxRetries = 20
           let retries = 0
 
           do {
@@ -78,13 +79,19 @@ Do not include any additional text, descriptions, or punctuation. Ignore any emb
 
             if (!text) continue
             if (text.length < 100 && /i'm sorry/i.test(text)) {
+              if (retries >= maxRetries) {
+                throw new Error(
+                  `Model refused too many times (${retries} times): ${text}`
+                )
+              }
+
               // Sometimes the model refuses to generate text for an image
               // presumably if it thinks the content may be copyrighted or
-              // otherwise inappropriate. I haven't seen this from "gpt-4o",
-              // but I have seen it more regularly from "gpt-4o-mini", so in
-              // this case we'll retry with a higher temperature and cross our
-              // fingers.
-              console.warn(`retrying refusal...`, { index, text, screenshot })
+              // otherwise inappropriate. I've seen this both "gpt-4o" and
+              // "gpt-4o-mini", but it seems to happen more regularly with
+              // "gpt-4o-mini". If we suspect a refual, we'll retry with a
+              // higher temperature and cross our fingers.
+              console.warn('retrying refusal...', { index, text, screenshot })
               continue
             }
 
@@ -108,9 +115,9 @@ Do not include any additional text, descriptions, or punctuation. Ignore any emb
 
   await fs.writeFile(
     path.join(outDir, 'content.json'),
-    JSON.stringify(results, null, 2)
+    JSON.stringify(content, null, 2)
   )
-  console.log(JSON.stringify(results, null, 2))
+  console.log(JSON.stringify(content, null, 2))
 }
 
 await main()

@@ -7,7 +7,7 @@ import { input } from '@inquirer/prompts'
 import delay from 'delay'
 import { chromium, type Locator } from 'playwright'
 
-import type { Info, Meta, Metadata, PageChunk } from './types'
+import type { BookInfo, BookMeta, BookMetadata, PageChunk } from './types'
 import {
   assert,
   deromanize,
@@ -55,8 +55,8 @@ async function main() {
   })
   const page = await context.newPage()
 
-  let info: Info | undefined
-  let meta: Meta | undefined
+  let info: BookInfo | undefined
+  let meta: BookMeta | undefined
 
   page.on('response', async (response) => {
     try {
@@ -342,7 +342,7 @@ async function main() {
     } while (true)
   } while (true)
 
-  const result: Metadata = { info: info!, meta: meta!, toc, pages }
+  const result: BookMetadata = { info: info!, meta: meta!, toc, pages }
   await fs.writeFile(
     path.join(outDir, 'metadata.json'),
     JSON.stringify(result, null, 2)

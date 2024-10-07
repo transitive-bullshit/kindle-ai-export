@@ -1,19 +1,17 @@
 #!/usr/bin/env node
-/* eslint-disable no-process-env */
 import 'dotenv/config'
 
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 
-import type { Metadata } from 'playwright/test'
 import PDFDocument from 'pdfkit'
 
-import type { ContentChunk } from './types'
-import { assert } from './utils'
+import type { BookMetadata, ContentChunk } from './types'
+import { assert, getEnv } from './utils'
 
 async function main() {
-  const asin = process.env.ASIN
+  const asin = getEnv('ASIN')
   assert(asin, 'ASIN is required')
 
   const outDir = path.join('out', asin)
@@ -23,20 +21,20 @@ async function main() {
   ) as ContentChunk[]
   const metadata = JSON.parse(
     await fsp.readFile(path.join(outDir, 'metadata.json'), 'utf8')
-  ) as Metadata
+  ) as BookMetadata
   assert(content.length, 'no book content found')
   assert(metadata.meta, 'invalid book metadata: missing meta')
   assert(metadata.toc?.length, 'invalid book metadata: missing toc')
 
   const title = metadata.meta.title
-  const author = metadata.meta.authorList.join('\n')
+  const authors = metadata.meta.authorList
 
   const doc = new PDFDocument({
     autoFirstPage: true,
     displayTitle: true,
     info: {
       Title: title,
-      Author: author
+      Author: authors.join(', ')
     }
   })
   const stream = doc.pipe(fs.createWriteStream(path.join(outDir, 'book.pdf')))
@@ -50,10 +48,10 @@ async function main() {
     doc.text(title, { align: 'center' })
     const w = doc.widthOfString(title)
 
-    const byline = `By ${author}`
+    const byline = `By ${authors.join(',\n')}`
 
     doc.fontSize(20)
-    doc.y -= 10
+    doc.y -= doc.heightOfString(byline) / 2
     doc.text(byline, {
       align: 'center',
       indent: w - doc.widthOfString(byline)

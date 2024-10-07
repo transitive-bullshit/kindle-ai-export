@@ -19,7 +19,7 @@ export interface PageChunk {
   screenshot: string
 }
 
-export interface Meta {
+export interface BookMeta {
   ACR: string
   asin: string
   authorList: Array<string>
@@ -42,7 +42,7 @@ export interface Meta {
   endPosition: number
 }
 
-export interface Info {
+export interface BookInfo {
   clippingLimit: number
   contentChecksum: any
   contentType: string
@@ -69,9 +69,9 @@ export interface Info {
   srl: number
 }
 
-export interface Metadata {
-  info: Info
-  meta: Meta
+export interface BookMetadata {
+  info: BookInfo
+  meta: BookMeta
   toc: TocItem[]
   pages: PageChunk[]
 }
