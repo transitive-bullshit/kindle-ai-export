@@ -37,7 +37,13 @@ It works by logging into your [Kindle web reader](https://read.amazon.com) accou
 
 The accuracy has been very close to perfect in my testing, with the only discrepancies being occasional whitespace issues.
 
-_(Exporting audio books with AI-generated voice narration is coming soon! Please star the repo if you're interested in this feature.)_
+<p align="center">
+  <img alt="Kindle web reader page" src="./examples/B0819W19WD/kindle-reader-page-example.png" width="45%">
+&nbsp; &nbsp; ⇒ &nbsp; &nbsp;
+  <img alt="Screenshot of page contents" src="./examples/B0819W19WD/pages/0000-0001.png" width="45%">
+</p>
+
+> [!NOTE] > _(Exporting audio books with AI-generated voice narration is coming soon! Please star the repo if you're interested in this feature.)_
 
 ### Why is this necessary?
 
