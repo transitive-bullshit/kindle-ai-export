@@ -13,25 +13,7 @@
   "engines": {
     "node": ">=18"
   },
-  "type": "module",
-  "main": "./dist/index.js",
-  "source": "./src/index.ts",
-  "types": "./dist/index.d.ts",
-  "sideEffects": false,
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
   "scripts": {
-    "build": "tsc",
-    "clean": "del clean",
-    "prebuild": "run-s clean",
-    "pretest": "run-s build",
     "test": "run-s test:*",
     "test:format": "prettier --check \"**/*.{js,ts,tsx}\"",
     "test:lint": "eslint .",
@@ -40,6 +22,8 @@
   },
   "dependencies": {
     "@inquirer/prompts": "^7.0.0",
+    "dotenv": "^16.4.5",
+    "globby": "^14.0.2",
     "kindle-api-ky": "^1.0.1",
     "openai-fetch": "^3.2.0",
     "p-map": "^7.0.2",
@@ -54,13 +38,10 @@
     "@types/pdfkit": "^0.13.5",
     "del-cli": "^5.1.0",
     "delay": "^6.0.0",
-    "dotenv": "^16.4.5",
     "eslint": "^8.57.0",
-    "globby": "^14.0.2",
     "npm-run-all2": "^6.2.2",
     "only-allow": "^1.2.1",
     "prettier": "^3.3.3",
-    "tsup": "^8.2.4",
     "typescript": "^5.5.4",
     "vitest": "2.1.2"
   }

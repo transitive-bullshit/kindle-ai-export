@@ -1,4 +1,5 @@
 {
   "root": true,
-  "extends": ["@fisch0920/eslint-config/node"]
+  "extends": ["@fisch0920/eslint-config/node"],
+  "ignorePatterns": ["dist", "out"]
 }
