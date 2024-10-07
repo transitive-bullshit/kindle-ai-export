@@ -66,30 +66,32 @@ async function main() {
   let meta: any
 
   page.on('response', async (response) => {
-    const status = response.status()
-    if (status !== 200) return
+    try {
+      const status = response.status()
+      if (status !== 200) return
 
-    const url = new URL(response.url())
-    if (
-      url.hostname === 'read.amazon.com' &&
-      url.pathname === '/service/mobile/reader/startReading' &&
-      url.searchParams.get('asin')?.toLowerCase() === asin.toLowerCase()
-    ) {
-      const body: any = await response.json()
-      delete body.karamelToken
-      delete body.metadataUrl
-      delete body.YJFormatVersion
-      info = body
-    } else if (url.pathname.endsWith('YJmetadata.jsonp')) {
-      const body = await response.text()
-      const metadata = parseJsonpResponse<any>(body)
-      if (metadata.asin !== asin) return
-      delete metadata.cpr
-      if (Array.isArray(metadata.authorsList)) {
-        metadata.authorsList = normalizeAuthors(metadata.authorsList)
+      const url = new URL(response.url())
+      if (
+        url.hostname === 'read.amazon.com' &&
+        url.pathname === '/service/mobile/reader/startReading' &&
+        url.searchParams.get('asin')?.toLowerCase() === asin.toLowerCase()
+      ) {
+        const body: any = await response.json()
+        delete body.karamelToken
+        delete body.metadataUrl
+        delete body.YJFormatVersion
+        info = body
+      } else if (url.pathname.endsWith('YJmetadata.jsonp')) {
+        const body = await response.text()
+        const metadata = parseJsonpResponse<any>(body)
+        if (metadata.asin !== asin) return
+        delete metadata.cpr
+        if (Array.isArray(metadata.authorsList)) {
+          metadata.authorsList = normalizeAuthors(metadata.authorsList)
+        }
+        meta = metadata
       }
-      meta = metadata
-    }
+    } catch {}
   })
 
   await Promise.any([

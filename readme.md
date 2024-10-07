@@ -37,6 +37,41 @@ It works by logging into your [Kindle web reader](https://read.amazon.com) accou
 
 The accuracy has been very close to perfect in my testing, with the only discrepancies being occasional whitespace issues.
 
+<table>
+  <tbody>
+    <tr>
+      <td>
+        <img src="./examples/B0819W19WD/kindle-reader-library-example.jpg" alt="Kindle web reader library" width="640">
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <img src="./examples/B0819W19WD/kindle-reader-page-example.png" alt="Kindle web reader page" width="640">
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds" width="640">
+      </td>
+    </tr>
+    <tr>
+      <td>
+**Mantell Sector, North Nekhebet, Resurgam, Delta Pavonis system, 2551**
+
+There was a razorstorm coming in.
+
+Sylveste stood on the edge of the excavation and wondered if any of his labours would survive the night. The archaeological dig was an array of deep square shafts separated by baulks of sheer-sided soil: the classical Wheeler box-grid. The shafts went down tens of metres, walled by transparent cofferdams spun from hyperdiamond. A million years of stratified geological history pressed against the sheets. But it would take only one good dustfall—one good razorstorm—to fill the shafts almost to the surface.
+
+“Confirmation, sir,” said one of his team, emerging from the crouched form of the first crawler. The man’s voice was muffled behind his breather mask. “Cuvier’s just issued a severe weather advisory for the whole North
+
+</td>
+</tr>
+
+  </tbody>
+</table>
+
+---
+
 <p align="center">
   <img alt="Kindle web reader page" src="./examples/B0819W19WD/kindle-reader-page-example.png" width="45%">
 &nbsp; &nbsp; ⇒ &nbsp; &nbsp;
@@ -154,12 +189,12 @@ The other downside is that the **LLM costs add up to a few dollars per book usin
 Here's an [example](./examples/B0819W19WD) using the first page of the scifi book [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds):
 
 <table>
-<tbody>
-  <tr>
-    <td align="center">
-      <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds" width="640">
-    </td>
-  </tr>
+  <tbody>
+    <tr>
+      <td>
+        <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds" width="640">
+      </td>
+    </tr>
   </tbody>
 </table>
 
