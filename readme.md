@@ -35,13 +35,11 @@ The [examples directory](./examples/B0819W19WD) contains a preview export of the
 
 It works by logging into your [Kindle web reader](https://read.amazon.com) account using [Playwright](https://playwright.dev), exporting each page of a book as a PNG image, and then using a vLLM (`gpt-4o` or `gpt-4o-mini`) to transcribe the text from each page to text. Once we have the raw book contents and metadata, then it's easy to convert it to PDF, EPUB, etc. 🔥
 
-The accuracy has been very close to perfect in my testing, with the only discrepancies being occasional whitespace issues.
-
 <table>
   <tbody>
     <tr>
       <td>
-        We start from the Kindle web reader library.
+        The automated script starts from the Kindle web reader's library page and selects the book we want to export.
       </td>
       <td>
         <img src="./examples/B0819W19WD/kindle-reader-library-example.jpg" alt="Kindle web reader library">
@@ -57,7 +55,7 @@ The accuracy has been very close to perfect in my testing, with the only discrep
     </tr>
     <tr>
       <td>
-        We use Playwright to take a screenshot of each page of the selected book.
+        Playwright exports a PNG screenshot for each page, bypassing Kindle's DRM.
       </td>
       <td>
         <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds">
@@ -65,7 +63,7 @@ The accuracy has been very close to perfect in my testing, with the only discrep
     </tr>
     <tr>
       <td>
-        Then we convert each page screenshot into text using one of OpenAI's vLLMs.
+        Then we convert each page's screenshot into text using one of OpenAI's vLLMs (`gpt-4o` or `gpt-4o-mini`).
       </td>
       <td>
 **Mantell Sector, North Nekhebet, Resurgam, Delta Pavonis system, 2551**
@@ -94,6 +92,8 @@ Sylveste stood on the edge of the excavation and wondered if any of his labours 
 &nbsp; &nbsp; ⇒ &nbsp; &nbsp;
   <img alt="Screenshot of page contents" src="./examples/B0819W19WD/pages/0000-0001.png" width="45%">
 </p>
+
+The accuracy has been very close to perfect in my testing, with the only discrepancies being occasional whitespace issues.
 
 > [!NOTE] > _(Exporting audio books with AI-generated voice narration is coming soon! Please star the repo if you're interested in this feature.)_
 
