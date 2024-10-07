@@ -1,5 +1,5 @@
 {
-  "name": "kindle-ai-hacks",
+  "name": "kindle-ai-export",
   "private": true,
   "version": "0.1.0",
   "description": "Export any Kindle book you own as text, PDF, EPUB, or an audiobook – powered by OpenAI.",
@@ -7,7 +7,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/transitive-bullshit/kindle-ai-hacks.git"
+    "url": "git+https://github.com/transitive-bullshit/kindle-ai-export.git"
   },
   "packageManager": "pnpm@9.11.0",
   "engines": {

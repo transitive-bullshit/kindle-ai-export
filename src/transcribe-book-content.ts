@@ -25,6 +25,7 @@ async function main() {
   const outDir = path.join('out', asin)
   const pageScreenshotsDir = path.join(outDir, 'pages')
   const pageScreenshots = await globby(`${pageScreenshotsDir}/*.png`)
+  assert(pageScreenshots.length, 'no page screenshots found')
 
   const openai = new OpenAIClient()
 

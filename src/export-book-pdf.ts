@@ -100,8 +100,11 @@ async function main() {
   const metadata = JSON.parse(
     await fsp.readFile(path.join(outDir, 'metadata.json'), 'utf8')
   ) as Metadata
+  assert(content.length, 'no book content found')
+  assert(metadata.meta, 'invalid book metadata: missing meta')
+  assert(metadata.toc?.length, 'invalid book metadata: missing toc')
 
-  const title = metadata.meta.title // + '\n(Preview)'
+  const title = metadata.meta.title
   const author = metadata.meta.authorList.join('\n')
 
   const doc = new PDFDocument({

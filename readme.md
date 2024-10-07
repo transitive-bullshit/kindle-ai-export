@@ -1,10 +1,10 @@
-# kindle-ai-hacks <!-- omit from toc -->
+# kindle-ai-export <!-- omit from toc -->
 
 > Export any Kindle book you own as text, PDF, EPUB, or an audiobook – powered by OpenAI!
 
 <p>
-  <a href="https://github.com/transitive-bullshit/kindle-ai-hacks/actions/workflows/main.yml"><img alt="Build Status" src="https://github.com/transitive-bullshit/kindle-ai-hacks/actions/workflows/main.yml/badge.svg" /></a>
-  <a href="https://github.com/transitive-bullshit/kindle-ai-hacks/blob/main/license"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue" /></a>
+  <a href="https://github.com/transitive-bullshit/kindle-ai-export/actions/workflows/main.yml"><img alt="Build Status" src="https://github.com/transitive-bullshit/kindle-ai-export/actions/workflows/main.yml/badge.svg" /></a>
+  <a href="https://github.com/transitive-bullshit/kindle-ai-export/blob/main/license"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue" /></a>
   <a href="https://prettier.io"><img alt="Prettier Code Formatting" src="https://img.shields.io/badge/code_style-prettier-brightgreen.svg" /></a>
 </p>
 
@@ -81,11 +81,12 @@ Run `npx tsx src/extract-kindle-book.ts`
 - **This takes a few minutes to run.**
 - This logs into your [Amazon Kindle web reader](https://read.amazon.com) using headless Chrome ([Playwright](https://playwright.dev)). It can be pretty fun to watch it run, though, so feel free to tweak the script to use `headless: false` if you want to understand what it's doing or debug things.
 - If your account requires 2FA, the terminal will request a code from you before proceeding.
-- We use a persistent browser session, so you should only have to auth once.
+- It uses a persistent browser session, so you should only have to auth once.
 - Once logged in, it navigates to the web reader page for a specific book (`https://read.amazon.com/?asin=${ASIN}`).
 - Then it changes the reader settings to use a single column and a sans-serif font.
 - Then it extracts the book's table of contents.
 - Then it goes through each page of the book's main contents and saves a PNG screenshot of the rendered content to `out/${asin}/pages/${index}-${page}.png`.
+- Lastly, it resets the reader to the original position so your reading progress isn't affected.
 - It also records some JSON metadata with the TOC, book title, author, product image, etc to `out/${asin}/metadata.json`.
 
 > [!NOTE]
