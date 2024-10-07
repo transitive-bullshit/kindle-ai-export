@@ -1,4 +1,4 @@
-# kindle-ai-export <!-- omit from toc -->
+# Kindle AI Export <!-- omit from toc -->
 
 > Export any Kindle book you own as text, PDF, EPUB, or as a custom, AI-narrated audiobook. 🔥
 
