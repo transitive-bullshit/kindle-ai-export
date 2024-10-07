@@ -149,18 +149,13 @@ Here's an [example](./examples/B0819W19WD) using the first page of the scifi boo
 <table>
 <tbody>
   <tr>
-  <td align="center">
-    <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds" width="640">
-  </td>
+    <td align="center">
+      <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds" width="640">
+      <em>(first page of [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds))</em>
+    </td>
   </tr>
   </tbody>
 </table>
-
----
-
-<p align="center">
-  <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds" width="640">
-</p>
 
 This image gets converted to the following text using a vLLM:
 
