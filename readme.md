@@ -1,6 +1,6 @@
 # kindle-ai-export <!-- omit from toc -->
 
-> Export any Kindle book you own as text, PDF, EPUB, or as an AI-narrated audiobook. 🔥
+> Export any Kindle book you own as text, PDF, EPUB, or as a custom, AI-narrated audiobook. 🔥
 
 <p>
   <a href="https://github.com/transitive-bullshit/kindle-ai-export/actions/workflows/main.yml"><img alt="Build Status" src="https://github.com/transitive-bullshit/kindle-ai-export/actions/workflows/main.yml/badge.svg" /></a>

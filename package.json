@@ -2,7 +2,7 @@
   "name": "kindle-ai-export",
   "private": true,
   "version": "0.1.0",
-  "description": "Export any Kindle book you own as text, PDF, EPUB, or as an AI-narrated audiobook.",
+  "description": "Export any Kindle book you own as text, PDF, EPUB, or as a custom, AI-narrated audiobook.",
   "author": "Travis Fischer <travis@transitivebullsh.it>",
   "license": "MIT",
   "repository": {
