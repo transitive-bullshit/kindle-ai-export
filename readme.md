@@ -63,16 +63,16 @@ It works by logging into your [Kindle web reader](https://read.amazon.com) accou
     </tr>
     <tr>
       <td>
-        Then we convert each page's screenshot into text using one of OpenAI's vLLMs (`gpt-4o` or `gpt-4o-mini`).
+        Then we convert each page's screenshot into text using one of OpenAI's vLLMs (<strong>gpt-4o</strong> or <strong>gpt-4o-mini</strong>).
       </td>
       <td>
-**Mantell Sector, North Nekhebet, Resurgam, Delta Pavonis system, 2551**
+<p>Mantell Sector, North Nekhebet, Resurgam, Delta Pavonis system, 2551</p>
 
-There was a razorstorm coming in.
+<p>There was a razorstorm coming in.</p>
 
-Sylveste stood on the edge of the excavation and wondered if any of his labours would survive the night. The archaeological dig was an array of deep square shafts separated by baulks of sheer-sided soil: the classical Wheeler box-grid. The shafts went down tens of metres, walled by transparent cofferdams spun from hyperdiamond. A million years of stratified geological history pressed against the sheets. But it would take only one good dustfall—one good razorstorm—to fill the shafts almost to the surface.
+<p>Sylveste stood on the edge of the excavation and wondered if any of his labours would survive the night. The archaeological dig was an array of deep square shafts separated by baulks of sheer-sided soil: the classical Wheeler box-grid. The shafts went down tens of metres, walled by transparent cofferdams spun from hyperdiamond. A million years of stratified geological history pressed against the sheets. But it would take only one good dustfall—one good razorstorm—to fill the shafts almost to the surface.</p>
 
-“Confirmation, sir,” said one of his team, emerging from the crouched form of the first crawler. The man’s voice was muffled behind his breather mask. “Cuvier’s just issued a severe weather advisory for the whole North
+<p>“Confirmation, sir,” said one of his team, emerging from the crouched form of the first crawler. The man’s voice was muffled behind his breather mask. “Cuvier’s just issued a severe weather advisory for the whole North</p>
 
 </td>
 </tr>
