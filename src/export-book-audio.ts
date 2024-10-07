@@ -8,8 +8,9 @@ import { OpenAIClient } from 'openai-fetch'
 import pMap from 'p-map'
 import { UnrealSpeechClient } from 'unrealspeech-api'
 
+import type { SpeechParams } from '../../openai-fetch/dist/types'
 import type { BookMetadata, ContentChunk } from './types'
-import { assert, getEnv } from './utils'
+import { assert, fileExists, getEnv, hashObject } from './utils'
 
 type TTSEngine = 'openai' | 'unrealspeech'
 
@@ -34,8 +35,24 @@ async function main() {
 
   // TTS engine configuration
   const ttsEngine = 'openai' as TTSEngine
-  const openaiVoice = 'alloy'
-  const unrealSpeechVoice = 'Scarlett'
+  const openaiEngineParams: Omit<SpeechParams, 'input'> = {
+    model: 'tts-1-hd',
+    voice: 'alloy',
+    response_format: 'mp3'
+  }
+  const unrealSpeechEngineParams: Omit<
+    Parameters<UnrealSpeechClient['speech']>[0],
+    'text'
+  > = {
+    voiceId: 'Scarlett'
+  }
+  const ttsEngineParams: any =
+    ttsEngine === 'openai' ? openaiEngineParams : unrealSpeechEngineParams
+  const ttsEngineVoice =
+    ttsEngine === 'openai'
+      ? openaiEngineParams.voice
+      : unrealSpeechEngineParams.voiceId
+  assert(ttsEngineVoice, 'Invalid TTS engine config: missing voice')
 
   const unrealSpeech =
     ttsEngine === 'unrealspeech' ? new UnrealSpeechClient() : undefined
@@ -44,6 +61,17 @@ async function main() {
 
   const title = metadata.meta.title
   const authors = metadata.meta.authorList
+
+  const configDirHash = hashObject({
+    ttsEngine,
+    ttsEngineParams,
+    title,
+    authors,
+    content
+  })
+  const configDir = `${ttsEngine}-${ttsEngineVoice}-${configDirHash}`
+  const ttsOutDir = path.join(audioOutDir, configDir)
+  await fs.mkdir(ttsOutDir, { recursive: true })
 
   const batches: Array<{
     title?: string
@@ -117,7 +145,7 @@ ${text}`.split('\n\n')
   console.log()
   console.log(batches)
   console.log()
-  console.log(`Generating audio for ${batches.length} batches...`)
+  console.log(`Generating audio for ${batches.length} batches to ${ttsOutDir}`)
   console.log()
   const audioPadding = `${batches.length}`.length
 
@@ -125,33 +153,27 @@ ${text}`.split('\n\n')
     batches,
     async (batch, index) => {
       const audioBaseFilename = `${index}`.padStart(audioPadding, '0')
-      const audioFilePath = path.join(audioOutDir, `${audioBaseFilename}.mp3`)
+      const audioFilePath = path.join(ttsOutDir, `${audioBaseFilename}.mp3`)
 
       // Don't recreate the audio file for this batch if it already exists.
       // Allow `process.env.FORCE` to override this behavior.
-      if (
-        !force &&
-        (await fs.access(audioFilePath, fs.constants.F_OK | fs.constants.R_OK))
-      ) {
+      if (!force && (await fileExists(audioFilePath))) {
         console.log(`Skipping audio batch ${index + 1}: ${audioFilePath}`)
         return
       }
 
       console.log(`Generating audio batch ${index + 1}: ${audioFilePath}`)
-
       let audio: ArrayBuffer
 
       if (ttsEngine === 'openai') {
         audio = await openai!.createSpeech({
-          input: batch.text,
-          model: 'tts-1-hd',
-          voice: openaiVoice,
-          response_format: 'mp3'
+          ...ttsEngineParams,
+          input: batch.text
         })
       } else {
         const res = await unrealSpeech!.speech({
-          text: batch.text,
-          voiceId: unrealSpeechVoice
+          ...ttsEngineParams,
+          text: batch.text
         })
         console.log(res)
 
