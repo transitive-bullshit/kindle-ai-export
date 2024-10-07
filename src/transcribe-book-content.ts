@@ -9,7 +9,7 @@ import { globby } from 'globby'
 import { OpenAIClient } from 'openai-fetch'
 import pMap from 'p-map'
 
-import { assert } from '../src/utils'
+import { assert } from './utils'
 
 type ContentChunk = {
   index: number

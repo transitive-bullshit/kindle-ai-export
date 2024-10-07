@@ -8,7 +8,7 @@ import path from 'node:path'
 
 import PDFDocument from 'pdfkit'
 
-import { assert } from '../src/utils'
+import { assert } from './utils'
 
 interface ContentChunk {
   index: number
@@ -101,7 +101,7 @@ async function main() {
     await fsp.readFile(path.join(outDir, 'metadata.json'), 'utf8')
   ) as Metadata
 
-  const title = metadata.meta.title
+  const title = metadata.meta.title + '\n(Preview)'
   const author = metadata.meta.authorList.join('\n')
 
   const doc = new PDFDocument({
@@ -154,7 +154,7 @@ async function main() {
     if (needsNewPage) {
       doc.addPage()
     }
-    const chunks = content.slice(index, nextIndex)
+    const chunks = content.slice(index, Math.min(nextIndex, index + 2))
 
     const text = chunks
       .map((chunk) => chunk.text)
@@ -177,7 +177,12 @@ async function main() {
 
     index = nextIndex
     needsNewPage = true
+    break
   }
+
+  doc.addPage()
+  doc.fontSize(20)
+  doc.text('(End of Preview)', { align: 'center', lineGap: 16 })
 
   doc.end()
   await new Promise((resolve, reject) => {

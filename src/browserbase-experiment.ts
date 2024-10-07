@@ -7,12 +7,10 @@ import fs from 'node:fs/promises'
 import { input } from '@inquirer/prompts'
 import { chromium } from 'playwright-core'
 
-import { assert } from '../src/utils'
+import { assert } from './utils'
 
 // TODO: kindle pages don't seem to render properly in headless playwright,
 // possibly due to webgl usage in the text renderer?
-
-// TODO: next try an in-browser script
 
 async function createSession() {
   const res = await fetch('https://www.browserbase.com/v1/sessions', {

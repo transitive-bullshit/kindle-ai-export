@@ -1,12 +1,13 @@
 {
-  "name": "kindle-api",
+  "name": "kindle-ai-hacks",
+  "private": true,
   "version": "0.1.0",
-  "description": "API client for accessing Kindle's unofficial API.",
+  "description": "Export any Kindle book you own as text, PDF, EPUB, or an audiobook – powered by OpenAI.",
   "author": "Travis Fischer <travis@transitivebullsh.it>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/transitive-bullshit/kindle-api.git"
+    "url": "git+https://github.com/transitive-bullshit/kindle-ai-hacks.git"
   },
   "packageManager": "pnpm@9.11.0",
   "engines": {
@@ -27,21 +28,24 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsc",
     "clean": "del clean",
     "prebuild": "run-s clean",
     "pretest": "run-s build",
     "test": "run-s test:*",
     "test:format": "prettier --check \"**/*.{js,ts,tsx}\"",
     "test:lint": "eslint .",
-    "test:typecheck": "tsc --noEmit",
+    "test:tyggpecheck": "tsc --noEmit",
     "preinstall": "npx only-allow pnpm"
   },
   "dependencies": {
-    "@inquirer/prompts": "^6.0.1",
-    "ky": "^1.7.2",
+    "@inquirer/prompts": "^7.0.0",
+    "kindle-api-ky": "^1.0.1",
     "openai-fetch": "^3.2.0",
-    "p-throttle": "^6.2.0"
+    "p-map": "^7.0.2",
+    "pdfkit": "^0.15.0",
+    "playwright": "^1.47.2",
+    "playwright-core": "^1.47.2"
   },
   "devDependencies": {
     "@fisch0920/eslint-config": "^1.4.0",
@@ -55,13 +59,9 @@
     "globby": "^14.0.2",
     "npm-run-all2": "^6.2.2",
     "only-allow": "^1.2.1",
-    "p-map": "^7.0.2",
-    "pdfkit": "^0.15.0",
-    "playwright": "^1.47.2",
-    "playwright-core": "^1.47.2",
     "prettier": "^3.3.3",
     "tsup": "^8.2.4",
     "typescript": "^5.5.4",
-    "vitest": "2.1.1"
+    "vitest": "2.1.2"
   }
 }

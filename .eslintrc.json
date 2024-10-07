@@ -1,8 +1,4 @@
 {
   "root": true,
-  "extends": ["@fisch0920/eslint-config/node"],
-  "rules": {
-    "no-useless-constructor": "off",
-    "unicorn/no-array-reduce": "off"
-  }
+  "extends": ["@fisch0920/eslint-config/node"]
 }

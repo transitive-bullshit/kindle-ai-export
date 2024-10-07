@@ -1,0 +1,297 @@
+{
+  "info": {
+    "clippingLimit": 10,
+    "contentChecksum": null,
+    "contentType": "EBOK",
+    "contentVersion": "da38557c",
+    "deliveredAsin": "B0819W19WD",
+    "downloadRestrictionReason": null,
+    "expirationDate": null,
+    "format": "YJ",
+    "formatVersion": "CR!WPPV87W8317H7FWJRF6JFMVE7SJY",
+    "fragmentMapUrl": null,
+    "hasAnnotations": false,
+    "isOwned": true,
+    "isSample": false,
+    "kindleSessionId": "e9b64fb6-0230-41a1-ad32-6974fd2248bc",
+    "lastPageReadData": {
+      "deviceName": "Travis's Kindle Cloud Reader",
+      "position": 1249755,
+      "syncTime": 1728113013000
+    },
+    "manifestUrl": null,
+    "originType": "Purchase",
+    "pageNumberUrl": null,
+    "requestedAsin": "B0819W19WD",
+    "srl": 2393
+  },
+  "meta": {
+    "ACR": "CR!WPPV87W8317H7FWJRF6JFMVE7SJY",
+    "asin": "B0819W19WD",
+    "authorList": ["Alastair Reynolds"],
+    "bookSize": "1126588",
+    "bookType": "mobi7",
+    "cover": "images/cover.jpg",
+    "language": "en",
+    "positions": { "cover": -1, "srl": -1, "toc": 1779 },
+    "publisher": "Orbit",
+    "refEmId": "CR!9PEQVK99HX1JK1KHXY2ATGB6YQW3:DA38557C",
+    "releaseDate": "21/04/2020",
+    "sample": false,
+    "title": "Revelation Space (The Inhibitor Trilogy)",
+    "version": "da38557c",
+    "startPosition": 5,
+    "endPosition": 1250310
+  },
+  "toc": [
+    {
+      "location": 1,
+      "total": 9962,
+      "title": "Cover"
+    },
+    {
+      "location": 2,
+      "total": 9962,
+      "title": "Title Page"
+    },
+    {
+      "location": 4,
+      "total": 9962,
+      "title": "Copyright"
+    },
+    {
+      "location": 63,
+      "total": 9962,
+      "title": "Introduction"
+    },
+    {
+      "page": 1,
+      "total": 548,
+      "title": "Chapter 1"
+    },
+    {
+      "page": 17,
+      "total": 548,
+      "title": "Chapter 2"
+    },
+    {
+      "page": 53,
+      "total": 548,
+      "title": "Chapter 3"
+    },
+    {
+      "page": 73,
+      "total": 548,
+      "title": "Chapter 4"
+    },
+    {
+      "page": 99,
+      "total": 548,
+      "title": "Chapter 5"
+    },
+    {
+      "page": 123,
+      "total": 548,
+      "title": "Chapter 6"
+    },
+    {
+      "page": 143,
+      "total": 548,
+      "title": "Chapter 7"
+    },
+    {
+      "page": 167,
+      "total": 548,
+      "title": "Chapter 8"
+    },
+    {
+      "page": 177,
+      "total": 548,
+      "title": "Chapter 9"
+    },
+    {
+      "page": 191,
+      "total": 548,
+      "title": "Chapter 10"
+    },
+    {
+      "page": 207,
+      "total": 548,
+      "title": "Chapter 11"
+    },
+    {
+      "page": 223,
+      "total": 548,
+      "title": "Chapter 12"
+    },
+    {
+      "page": 241,
+      "total": 548,
+      "title": "Chapter 13"
+    },
+    {
+      "page": 273,
+      "total": 548,
+      "title": "Chapter 14"
+    },
+    {
+      "page": 283,
+      "total": 548,
+      "title": "Chapter 15"
+    },
+    {
+      "page": 295,
+      "total": 548,
+      "title": "Chapter 16"
+    },
+    {
+      "page": 315,
+      "total": 548,
+      "title": "Chapter 17"
+    },
+    {
+      "page": 319,
+      "total": 548,
+      "title": "Chapter 18"
+    },
+    {
+      "page": 333,
+      "total": 548,
+      "title": "Chapter 19"
+    },
+    {
+      "page": 345,
+      "total": 548,
+      "title": "Chapter 20"
+    },
+    {
+      "page": 357,
+      "total": 548,
+      "title": "Chapter 21"
+    },
+    {
+      "page": 367,
+      "total": 548,
+      "title": "Chapter 22"
+    },
+    {
+      "page": 373,
+      "total": 548,
+      "title": "Chapter 23"
+    },
+    {
+      "page": 385,
+      "total": 548,
+      "title": "Chapter 24"
+    },
+    {
+      "page": 393,
+      "total": 548,
+      "title": "Chapter 25"
+    },
+    {
+      "page": 403,
+      "total": 548,
+      "title": "Chapter 26"
+    },
+    {
+      "page": 409,
+      "total": 548,
+      "title": "Chapter 27"
+    },
+    {
+      "page": 415,
+      "total": 548,
+      "title": "Chapter 28"
+    },
+    {
+      "page": 425,
+      "total": 548,
+      "title": "Chapter 29"
+    },
+    {
+      "page": 431,
+      "total": 548,
+      "title": "Chapter 30"
+    },
+    {
+      "page": 441,
+      "total": 548,
+      "title": "Chapter 31"
+    },
+    {
+      "page": 455,
+      "total": 548,
+      "title": "Chapter 32"
+    },
+    {
+      "page": 459,
+      "total": 548,
+      "title": "Chapter 33"
+    },
+    {
+      "page": 469,
+      "total": 548,
+      "title": "Chapter 34"
+    },
+    {
+      "page": 473,
+      "total": 548,
+      "title": "Chapter 35"
+    },
+    {
+      "page": 483,
+      "total": 548,
+      "title": "Chapter 36"
+    },
+    {
+      "page": 493,
+      "total": 548,
+      "title": "Chapter 37"
+    },
+    {
+      "page": 503,
+      "total": 548,
+      "title": "Chapter 38"
+    },
+    {
+      "page": 513,
+      "total": 548,
+      "title": "Chapter 39"
+    },
+    {
+      "page": 530,
+      "total": 548,
+      "title": "Discover More"
+    },
+    {
+      "page": 532,
+      "total": 548,
+      "title": "Meet the Author"
+    },
+    {
+      "page": 533,
+      "total": 548,
+      "title": "A Preview of \"Redemption Ark\""
+    },
+    {
+      "page": 548,
+      "total": 548,
+      "title": "Also by Alastair Reynolds"
+    }
+  ],
+  "pages": [
+    {
+      "index": 0,
+      "page": 1,
+      "total": 548,
+      "screenshot": "out/B0819W19WD/pages/0000-0001.png"
+    },
+    {
+      "index": 1,
+      "page": 1,
+      "total": 548,
+      "screenshot": "out/B0819W19WD/pages/0001-0001.png"
+    }
+  ]
+}

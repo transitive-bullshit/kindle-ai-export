@@ -14,7 +14,7 @@ import {
   deromanize,
   normalizeAuthors,
   parseJsonpResponse
-} from '../src/utils'
+} from './utils'
 
 interface PageNav {
   page?: number
@@ -50,15 +50,8 @@ async function main() {
 
   const bookReaderUrl = `https://read.amazon.com/?asin=${asin}`
 
-  // const browser = await chromium.launch({
-  //   headless: false,
-  //   channel: 'chrome',
-  //   executablePath:
-  //     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-  // })
-  // const context = await browser.newContext(devices['Desktop Chrome'])
   const context = await chromium.launchPersistentContext(userDataDir, {
-    headless: false,
+    headless: true,
     channel: 'chrome',
     executablePath:
       '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
