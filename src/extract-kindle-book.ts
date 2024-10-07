@@ -41,6 +41,7 @@ async function main() {
   await fs.mkdir(userDataDir, { recursive: true })
   await fs.mkdir(pageScreenshotsDir, { recursive: true })
 
+  const krRendererMainImageSelector = '#kr-renderer .kg-full-page-img img'
   const bookReaderUrl = `https://read.amazon.com/?asin=${asin}`
 
   const context = await chromium.launchPersistentContext(userDataDir, {
@@ -262,11 +263,11 @@ async function main() {
     const index = pages.length
 
     const src = await page
-      .locator('#kr-renderer .kg-full-page-img img')
+      .locator(krRendererMainImageSelector)
       .getAttribute('src')
 
     const b = await page
-      .locator('#kr-renderer .kg-full-page-img img')
+      .locator(krRendererMainImageSelector)
       .screenshot({ type: 'png', scale: 'css' })
 
     const screenshotPath = path.join(
@@ -294,10 +295,10 @@ async function main() {
       break
     }
 
-    // Occasionally the next page button doesn't work, so ensure that the main
-    // image src actually changes before continuing.
     let retries = 0
 
+    // Occasionally the next page button doesn't work, so ensure that the main
+    // image src actually changes before continuing.
     do {
       try {
         // Navigate to the next page
@@ -311,6 +312,7 @@ async function main() {
             })
           }
 
+          // Click the next page button
           await page
             .locator('.kr-chevron-container-right')
             .click({ timeout: 1000 })
@@ -326,7 +328,7 @@ async function main() {
       }
 
       const newSrc = await page
-        .locator('#kr-renderer .kg-full-page-img img')
+        .locator(krRendererMainImageSelector)
         .getAttribute('src')
       if (newSrc !== src) {
         break
