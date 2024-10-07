@@ -29,8 +29,6 @@ This project makes it easy to export the contents of any ebook in your Kindle li
 
 _You must own the ebook on Kindle for this project to work._
 
-The [examples directory](./examples/B0819W19WD) contains a preview export of the first page of the scifi book [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds), including the [preview PDF output](./examples/B0819W19WD/book-preview.pdf).
-
 ### How does it work?
 
 It works by logging into your [Kindle web reader](https://read.amazon.com) account using [Playwright](https://playwright.dev), exporting each page of a book as a PNG image, and then using a vLLM (`gpt-4o` or `gpt-4o-mini`) to transcribe the text from each page to text. Once we have the raw book contents and metadata, then it's easy to convert it to PDF, EPUB, etc. 🔥
@@ -88,8 +86,6 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
     </tr>
   </tbody>
 </table>
-
-The [examples folder](./examples/B0819W19WD) contains a **PREVIEW** of the output for the first page of [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds). It only contains the first page because I wanted to respect the author's copyright, but this should be enough for you to get a feel for what the output looks like.
 
 > [!NOTE]
 > Exporting audio books with AI-generated voice narration is coming soon! Please star the repo if you're interested in this feature.
