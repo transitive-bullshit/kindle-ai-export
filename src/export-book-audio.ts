@@ -6,11 +6,10 @@ import path from 'node:path'
 import ffmpeg from 'fluent-ffmpeg'
 import ky from 'ky'
 import ID3 from 'node-id3'
-import { OpenAIClient } from 'openai-fetch'
+import { OpenAIClient, type SpeechParams } from 'openai-fetch'
 import pMap from 'p-map'
 import { UnrealSpeechClient } from 'unrealspeech-api'
 
-import type { SpeechParams } from '../../openai-fetch/dist/types'
 import type { BookMetadata, ContentChunk } from './types'
 import {
   assert,
