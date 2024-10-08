@@ -96,12 +96,15 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
           </li>
           <li>
             <a href="./examples/B0819W19WD/audio-previews/openai-alloy-preview.mp3">Audiobook preview using OpenAI's "alloy" voice</a> (solid quality but expensive)
+            <video src="./examples/B0819W19WD/audio-previews/openai-alloy-preview.mp3" type="audio/mp3"/>
           </li>
           <li>
             <a href="./examples/B0819W19WD/audio-previews/openai-onyx-preview.mp3">Audiobook preview using OpenAI's "onyx" voice</a> (solid quality but expensive)
+            <video src="./examples/B0819W19WD/audio-previews/openai-onyx-preview.mp3"></video>
           </li>
           <li>
             <a href="./examples/B0819W19WD/audio-previews/unrealspeech-scarlett-preview.mp3">Audiobook preview using Unreal Speech's "scarlett" voice</a> (medium quality but cheaper)
+            <video src="./examples/B0819W19WD/audio-previews/unrealspeech-scarlett-preview.mp3"></video>
           </li>
         </ul>
       </td>
