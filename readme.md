@@ -83,13 +83,25 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
         After doing this for each page, we now have access to the book's full contents and metadata, so we can export it in any format we want. 🎉
       </td>
       <td>
-        Here are some output previews containing only the first page of this book:
+        <p>Here are some output previews containing only the first page of this book:</p>
         <ul>
           <li>
             <a href="./examples/B0819W19WD/book-preview.pdf">PDF output preview</a>
           </li>
           <li>
+            <a href="./examples/B0819W19WD/book-preview.epub">EPUB output preview</a>
+          </li>
+          <li>
             <a href="./examples/B0819W19WD/book-preview.md">Markdown output preview</a>
+          </li>
+          <li>
+            <a href="./examples/B0819W19WD/audio-previews/openai-alloy-preview.mp3">Audiobook preview using OpenAI's "alloy" voice (female)</a>
+          </li>
+          <li>
+            <a href="./examples/B0819W19WD/audio-previews/openai-onyx-preview.mp3">Audiobook preview using OpenAI's "onyx" voice (male)</a>
+          </li>
+          <li>
+            <a href="./examples/B0819W19WD/audio-previews/unrealspeech-scarlett-preview.mp3">Audiobook preview using Unreal Speech's "scarlett" voice (female)</a>
           </li>
         </ul>
       </td>
