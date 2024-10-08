@@ -100,7 +100,6 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
           </li>
           <li>
             <a href="./examples/B0819W19WD/audio-previews/openai-onyx-preview.mp3">Audiobook preview using OpenAI's "onyx" voice</a> (solid quality but expensive)
-            <video src="./examples/B0819W19WD/audio-previews/openai-onyx-preview.mp4"></video>
           </li>
           <li>
             <a href="./examples/B0819W19WD/audio-previews/unrealspeech-scarlett-preview.mp3">Audiobook preview using Unreal Speech's "scarlett" voice</a> (medium quality but cheaper)
@@ -111,11 +110,15 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
   </tbody>
 </table>
 
-<video src="./examples/B0819W19WD/audio-previews/unrealspeech-scarlett-preview.mp4"></video>
+<video src="https://github.com/user-attachments/assets/f634f2cc-cc65-4381-ba04-5fc59df69668"></video>
 
-[pizza1.webm](https://user-images.githubusercontent.com/34592747/cfa98e54-721c-4b9c-b962-688e09db684f.webm)
+---
 
-[unrealspeech-scarlett-preview.mp4](https://github.com/user-attachments/assets/f634f2cc-cc65-4381-ba04-5fc59df69668)
+[openai-alloy-preview.mp4](https://github.com/user-attachments/assets/f634f2cc-cc65-4381-ba04-5fc59df69668)
+
+[openai-onyx-preview.mp4](https://github.com/user-attachments/assets/5cc86ae3-9f82-414c-a69f-a2ab40db4ce1)
+
+[unrealspeech-scarlett-preview.mp4](https://github.com/user-attachments/assets/232e5258-9f89-4493-a06b-5523ddf93226)
 
 ### Why is this necessary?
 
