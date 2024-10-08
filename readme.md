@@ -18,7 +18,7 @@
   - [Export Book as PDF](#export-book-as-pdf)
   - [(Optional) Export Book as EPUB](#optional-export-book-as-epub)
   - [(Optional) Export Book as Markdown](#optional-export-book-as-markdown)
-  - [(Optional) Export as AI-Narrated Audiobook 🔥](#optional-export-as-ai-narrated-audiobook-)
+  - [(Optional) Export Book as AI-Narrated Audiobook 🔥](#optional-export-book-as-ai-narrated-audiobook-)
 - [Disclaimer](#disclaimer)
 - [Author's Notes](#authors-notes)
   - [Alternative Approaches](#alternative-approaches)
@@ -211,7 +211,7 @@ npx tsx src/export-book-markdown.ts
 - The result is stored to `out/${asin}/book.md`.
 - Example: [examples/B0819W19WD/book-preview.md](./examples/B0819W19WD/book-preview.md)
 
-### (Optional) Export as AI-Narrated Audiobook 🔥
+### (Optional) Export Book as AI-Narrated Audiobook 🔥
 
 ```sh
 npx tsx src/export-book-audio.ts
