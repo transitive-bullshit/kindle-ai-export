@@ -109,23 +109,16 @@ Here are some auto-generated examples using a few different TTS providers & voic
 <table>
   <tbody>
     <tr>
-      <td>
-        <p align="center">
-          OpenAI tts-1-hd "alloy" voice
-        </p>
-        <p align="center">
-          (female; solid quality but more expensive)
-        </p>
+      <td align="center">
+        OpenAI tts-1-hd "alloy" voice <br />(female; solid quality but more expensive)
       </td>
       <td>
         <video src="https://github.com/user-attachments/assets/f634f2cc-cc65-4381-ba04-5fc59df69668"></video>
       </td>
     </tr>
     <tr>
-      <td>
-        <p align="center">
-          OpenAI tts-1-hd "onyx" voice (male; solid quality but more expensive)
-        </p>
+      <td align="center">
+        OpenAI tts-1-hd "onyx" voice <br />(male; solid quality but more expensive)
       </td>
       <td>
         <video src="https://github.com/user-attachments/assets/5cc86ae3-9f82-414c-a69f-a2ab40db4ce1"></video>
