@@ -104,13 +104,18 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
 
 We can even use TTS to generate custom audiobooks. 🔥
 
-Here are some examples using a few different TTS providers & voices, containing only the first page of this book as a preview:
+Here are some auto-generated examples using a few different TTS providers & voices, containing only the first page of this book as a preview:
 
 <table>
   <tbody>
     <tr>
       <td>
-        OpenAI tts-1-hd "alloy" voice (female; solid quality but more expensive)
+        <p align="center">
+          OpenAI tts-1-hd "alloy" voice
+        </p>
+        <p align="center">
+          (female; solid quality but more expensive)
+        </p>
       </td>
       <td>
         <video src="https://github.com/user-attachments/assets/f634f2cc-cc65-4381-ba04-5fc59df69668"></video>
@@ -118,15 +123,17 @@ Here are some examples using a few different TTS providers & voices, containing 
     </tr>
     <tr>
       <td>
-        OpenAI tts-1-hd "onyx" voice (male; solid quality but more expensive)
+        <p align="center">
+          OpenAI tts-1-hd "onyx" voice (male; solid quality but more expensive)
+        </p>
       </td>
       <td>
         <video src="https://github.com/user-attachments/assets/5cc86ae3-9f82-414c-a69f-a2ab40db4ce1"></video>
       </td>
     </tr>
     <tr>
-      <td>
-        Unreal Speech "Scarlett" voice (female; medium quality but cheaper)
+      <td align="center">
+        Unreal Speech "Scarlett" voice <br />(female; medium quality but cheaper)
       </td>
       <td>
         <video src="https://github.com/user-attachments/assets/232e5258-9f89-4493-a06b-5523ddf93226"></video>
