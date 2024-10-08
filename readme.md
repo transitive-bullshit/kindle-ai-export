@@ -104,13 +104,18 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
           </li>
           <li>
             <a href="./examples/B0819W19WD/audio-previews/unrealspeech-scarlett-preview.mp3">Audiobook preview using Unreal Speech's "scarlett" voice</a> (medium quality but cheaper)
-            <video src="./examples/B0819W19WD/audio-previews/unrealspeech-scarlett-preview.mp4"></video>
           </li>
         </ul>
       </td>
     </tr>
   </tbody>
 </table>
+
+<video src="./examples/B0819W19WD/audio-previews/unrealspeech-scarlett-preview.mp4"></video>
+
+[pizza1.webm](https://user-images.githubusercontent.com/34592747/cfa98e54-721c-4b9c-b962-688e09db684f.webm)
+
+[unrealspeech-scarlett-preview.mp4](./examples/B0819W19WD/audio-previews/unrealspeech-scarlett-preview.mp4)
 
 ### Why is this necessary?
 
