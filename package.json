@@ -18,7 +18,7 @@
     "test": "run-s test:*",
     "test:format": "prettier --check \"**/*.{js,ts,tsx}\"",
     "test:lint": "eslint .",
-    "test:tyggpecheck": "tsc --noEmit",
+    "test:typecheck": "tsc --noEmit",
     "preinstall": "npx only-allow pnpm"
   },
   "dependencies": {
