@@ -141,7 +141,7 @@ Here are some auto-generated examples using a few different TTS providers & voic
 
 This project changes that.
 
-_Why?_ Because I love reading books on Kindle (especially scifi books!!), but none of the content is _hackable_. The official Kindle apps are also lagging behind in their AI features, so my goal with this project is to make it easy to build AI-powered experiments on top of my own Kindle library. In order to do that, I first needed a reliable way to export the contents of my Kindle books in a reasonable format.
+_Why?_ Because I love reading books on Kindle (especially scifi books!!), but none of the content is _hackable_. The official Kindle apps are also lagging behind in their AI features, so my goal with this project was to make it easy to build AI-powered experiments on top of my own Kindle library. In order to do that, I first needed a reliable way to export the contents of my Kindle books in a reasonable format.
 
 I also created an [OSS TypeScript client for the unofficial Kindle API](https://github.com/transitive-bullshit/kindle-api), but I ended up only using some of the types and utils since Playwright + vLLMs allowed me to completely bypass their API and DRM. This approach should also be a lot less error-prone than using their unofficial API.
 
