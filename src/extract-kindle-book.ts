@@ -444,44 +444,4 @@ function parseTocItems(tocItems: TocItem[]) {
   }
 }
 
-// fetch(
-//   'https://read.amazon.com/service/mobile/reader/startReading?asin=B0819W19WD&clientVersion=20000100',
-//   {
-//     headers: {
-//       accept: '*/*',
-//       'accept-language': 'en-US,en;q=0.9',
-//       'device-memory': '8',
-//       downlink: '10',
-//       dpr: '2',
-//       ect: '4g',
-//       priority: 'u=1, i',
-//       rtt: '50',
-//       'sec-ch-device-memory': '8',
-//       'sec-ch-dpr': '2',
-//       'sec-ch-ua':
-//         '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
-//       'sec-ch-ua-mobile': '?0',
-//       'sec-ch-ua-platform': '"macOS"',
-//       'sec-ch-viewport-width': '1728',
-//       'sec-fetch-dest': 'empty',
-//       'sec-fetch-mode': 'cors',
-//       'sec-fetch-site': 'same-origin',
-//       'viewport-width': '1728',
-//       'x-adp-session-token': null,
-//       cookie: null,
-//       Referer: 'https://read.amazon.com/?asin=B0819W19WD&ref_=kwl_kr_iv_rec_1',
-//       'Referrer-Policy': 'strict-origin-when-cross-origin'
-//     },
-//     body: null,
-//     method: 'GET'
-//   }
-// )
-
-// fetch(
-//   'https://k4wyjmetadata.s3.amazonaws.com/books2/B0819W19WD/da38557c/CR%21WPPV87W8317H7FWJRF6JFMVE7SJY/book/YJmetadata.jsonp',
-//   {
-//     method: 'GET'
-//   }
-// )
-
 await main()
