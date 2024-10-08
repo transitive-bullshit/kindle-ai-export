@@ -10,6 +10,7 @@
 
 - [Intro](#intro)
   - [How does it work?](#how-does-it-work)
+  - [Audiobook Examples 🔥](#audiobook-examples-)
   - [Why is this necessary?](#why-is-this-necessary)
 - [Usage](#usage)
   - [Setup Env Vars](#setup-env-vars)
@@ -17,6 +18,8 @@
   - [Transcribe Book Content](#transcribe-book-content)
   - [Export Book as PDF](#export-book-as-pdf)
   - [(Optional) Export Book as EPUB](#optional-export-book-as-epub)
+  - [(Optional) Export Book as Markdown](#optional-export-book-as-markdown)
+  - [(Optional) Export Book as AI-Narrated Audiobook 🔥](#optional-export-book-as-ai-narrated-audiobook-)
 - [Disclaimer](#disclaimer)
 - [Author's Notes](#authors-notes)
   - [Alternative Approaches](#alternative-approaches)
@@ -55,7 +58,7 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
     </tr>
     <tr>
       <td>
-        Playwright exports a scaled down PNG screenshot of each page's rendered content, bypassing Kindle's DRM.
+        For each page, we use Playwright to export a scaled down PNG screenshot of the page's rendered content, bypassing Kindle's DRM.
       </td>
       <td>
         <img src="./examples/B0819W19WD/pages/0000-0001.png" alt="First page of Revelation Space by Alastair Reynolds">
@@ -63,32 +66,74 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
     </tr>
     <tr>
       <td>
-        Then we convert each page's screenshot into text using one of OpenAI's vLLMs (<strong>gpt-4o</strong> or <strong>gpt-4o-mini</strong>).
+        We then convert each page's screenshot into text using one of OpenAI's vLLMs (<strong>gpt-4o</strong> or <strong>gpt-4o-mini</strong>).
       </td>
       <td>
-<p>Mantell Sector, North Nekhebet, Resurgam, Delta Pavonis system, 2551</p>
-
-<p>There was a razorstorm coming in.</p>
-
-<p>Sylveste stood on the edge of the excavation and wondered if any of his labours would survive the night. The archaeological dig was an array of deep square shafts separated by baulks of sheer-sided soil: the classical Wheeler box-grid. The shafts went down tens of metres, walled by transparent cofferdams spun from hyperdiamond. A million years of stratified geological history pressed against the sheets. But it would take only one good dustfall—one good razorstorm—to fill the shafts almost to the surface.</p>
-
-<p>“Confirmation, sir,” said one of his team, emerging from the crouched form of the first crawler. The man’s voice was muffled behind his breather mask. “Cuvier’s just issued a severe weather advisory for the whole North</p>
-
-</td>
-</tr>
+        <p>Mantell Sector, North Nekhebet, Resurgam, Delta Pavonis system, 2551</p>
+        <p>There was a razorstorm coming in.</p>
+        <p>Sylveste stood on the edge of the excavation and wondered if any of his labours would survive the night. The archaeological dig was an array of deep square shafts separated by baulks of sheer-sided soil: the classical Wheeler box-grid. The shafts went down tens of metres, walled by transparent cofferdams spun from hyperdiamond. A million years of stratified geological history pressed against the sheets. But it would take only one good dustfall—one good razorstorm—to fill the shafts almost to the surface.</p>
+        <p>“Confirmation, sir,” said one of his team, emerging from the crouched form of the first crawler. The man’s voice was muffled behind his breather mask. “Cuvier’s just issued a severe weather advisory for the whole North</p>
+      </td>
+    </tr>
     <tr>
       <td>
         After doing this for each page, we now have access to the book's full contents and metadata, so we can export it in any format we want. 🎉
       </td>
       <td>
-        Here's a <a href="./examples/B0819W19WD/book-preview.pdf">preview of the PDF output</a> containing only the first page of this book for example purposes.
+        <p>Here are some output previews containing only the first page of this book:</p>
+        <ul>
+          <li>
+            <a href="./examples/B0819W19WD/book-preview.pdf">PDF output preview</a>
+          </li>
+          <li>
+            <a href="./examples/B0819W19WD/book-preview.epub">EPUB output preview</a>
+          </li>
+          <li>
+            <a href="./examples/B0819W19WD/book-preview.md">Markdown output preview</a>
+          </li>
+          <li>
+            <a href="#audiobook-examples-">Audiobook examples</a>
+          </li>
+        </ul>
       </td>
     </tr>
   </tbody>
 </table>
 
-> [!NOTE]
-> Exporting audiobooks with AI-generated voice narration is coming soon! Please star the repo if you're interested in this feature.
+### Audiobook Examples 🔥
+
+We can even use TTS to generate custom audiobooks.
+
+Here are some auto-generated examples using a few different TTS providers & voices, containing only the first page of this book as a preview:
+
+<table>
+  <tbody>
+    <tr>
+      <td align="center">
+        OpenAI tts-1-hd "alloy" voice <br />(female; solid quality but more expensive)
+      </td>
+      <td>
+        <video src="https://github.com/user-attachments/assets/f634f2cc-cc65-4381-ba04-5fc59df69668"></video>
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
+        OpenAI tts-1-hd "onyx" voice <br />(male; solid quality but more expensive)
+      </td>
+      <td>
+        <video src="https://github.com/user-attachments/assets/5cc86ae3-9f82-414c-a69f-a2ab40db4ce1"></video>
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
+        Unreal Speech "Scarlett" voice <br />(female; medium quality but cheaper)
+      </td>
+      <td>
+        <video src="https://github.com/user-attachments/assets/232e5258-9f89-4493-a06b-5523ddf93226"></video>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
 ### Why is this necessary?
 
@@ -113,7 +158,7 @@ Make sure you have `node >= 18` and [pnpm](https://pnpm.io) installed.
 
 ### Setup Env Vars
 
-Set up these environment variables in a local `.env`:
+Set up these required environment variables in a local `.env`:
 
 ```sh
 AMAZON_EMAIL=
@@ -131,16 +176,18 @@ You can find your book's [ASIN](https://en.wikipedia.org/wiki/Amazon_Standard_Id
 npx tsx src/extract-kindle-book.ts
 ```
 
-- **This takes a few minutes to run.**
-- This logs into your [Amazon Kindle web reader](https://read.amazon.com) using headless Chrome ([Playwright](https://playwright.dev)). It can be pretty fun to watch it run, though, so feel free to tweak the script to use `headless: false` if you want to understand what it's doing or debug things.
+- _(This takes a few minutes to run)_
+- This logs into your [Amazon Kindle web reader](https://read.amazon.com) using headless Chrome ([Playwright](https://playwright.dev)). It can be pretty fun to watch it run, so feel free to tweak the script to use `headless: false` to watch it do its thing.
 - If your account requires 2FA, the terminal will request a code from you before proceeding.
 - It uses a persistent browser session, so you should only have to auth once.
 - Once logged in, it navigates to the web reader page for a specific book (`https://read.amazon.com/?asin=${ASIN}`).
 - Then it changes the reader settings to use a single column and a sans-serif font.
 - Then it extracts the book's table of contents.
 - Then it goes through each page of the book's main contents and saves a PNG screenshot of the rendered content to `out/${asin}/pages/${index}-${page}.png`.
+- Example: [examples/B0819W19WD/pages](./examples/B0819W19WD/pages)
 - Lastly, it resets the reader to the original position so your reading progress isn't affected.
 - It also records some JSON metadata with the TOC, book title, author, product image, etc to `out/${asin}/metadata.json`.
+- Example: [examples/B0819W19WD/metadata.json](./examples/B0819W19WD/metadata.json)
 
 > [!NOTE]
 > I'm pretty sure Kindle's web reader uses WebGL at least in part to render the page contents, because the content pages failed to generate when running this on a VM ([Browserbase](https://www.browserbase.com)). So if you're getting blank or invalid page screenshots, that may be the reason.
@@ -151,10 +198,11 @@ npx tsx src/extract-kindle-book.ts
 npx tsx src/transcribe-book-content.ts
 ```
 
-- **This takes a few minutes to run.**
+- _(This takes a few minutes to run)_
 - This takes each of the page screenshots and runs them through a vLLM (`gpt-4o` or `gpt-4o-mini`) to extract the raw text content from each page of the book.
 - It then stitches these text chunks together, taking into account chapter boundaries.
 - The result is stored as JSON to `out/${asin}/content.json`.
+- Example: [examples/B0819W19WD/content.json](./examples/B0819W19WD/content.json)
 
 ### Export Book as PDF
 
@@ -162,10 +210,11 @@ npx tsx src/transcribe-book-content.ts
 npx tsx src/export-book-pdf.ts
 ```
 
-- This should run almost instantly.
+- _(This should run instantly)_
 - It uses [PDFKit](https://github.com/foliojs/pdfkit) under the hood.
 - It includes a valid table of contents for easy navigation.
 - The result is stored to `out/${asin}/book.pdf`.
+- Example: [examples/B0819W19WD/book-preview.pdf](./examples/B0819W19WD/book-preview.pdf)
 
 ### (Optional) Export Book as EPUB
 
@@ -177,6 +226,40 @@ ebook-convert out/B0819W19WD/book.pdf out/B0819W19WD/book.epub --enable-heuristi
 ```
 
 _([ebook-convert docs](https://manual.calibre-ebook.com/generated/en/ebook-convert.html))_
+
+### (Optional) Export Book as Markdown
+
+```sh
+npx tsx src/export-book-markdown.ts
+```
+
+- _(This should run instantly)_
+- The result is stored to `out/${asin}/book.md`.
+- Example: [examples/B0819W19WD/book-preview.md](./examples/B0819W19WD/book-preview.md)
+
+### (Optional) Export Book as AI-Narrated Audiobook 🔥
+
+```sh
+npx tsx src/export-book-audio.ts
+```
+
+- _This takes a few minutes to run._
+- We support two TTS engines: [OpenAI TTS](https://platform.openai.com/docs/models/tts) and [Unreal Speech TTS](https://unrealspeech.com).
+  - To use OpenAI, set `TTS_ENGINE=openai` (the default)
+  - To use Unreal Speech, set `TTS_ENGINE=unrealspeech` and `UNREAL_SPEECH_API_KEY=(your-api-key)`
+  - OpenAI is higher quality but more expensive; Unreal Speech is medium quality and cheaper
+  - To set the OpenAI voice, use `OPENAI_TTS_VOICE=onyx` (defaults to `alloy`)
+  - To set the Unreal Speech voice, use `UNREAL_SPEECH_VOICE='Scarlett'` (defaults to `Scarlett`)
+  - OpenAI TTS for a full novel (~1M tokens) is approximately **$30** (1.5GB MP3 ~21 hours long)
+  - Unreal Speech TTS for a full novel (~1M tokens) is approximately **$2** (1.7GB MP3 ~23 hours long)
+  - It should be pretty easy to support other TTS providers in the future.
+- The TTS will be broken up into reasonly sized chunks and stored in `mp3` files under `out/${asin}/audio/<tts-engine-hash>/`.
+  - The `<tts-engine-hash>` directory is based on the TTS engine settings and book contents
+- After generating audio for each chunk, we use `ffmpeg` to concat them together.
+  - You need to have `ffmpeg` installed locally for this to work
+  - On Mac, `brew install ffmpeg` ([or install with more options](https://stackoverflow.com/a/55108365/2353599))
+- The resulting audiobook is stored to `out/${asin}/audio/<tts-engine-hash>/audiobook.mp3`.
+- Examples: [examples/B0819W19WD/audio-previews](./examples/B0819W19WD/audio-previews)
 
 ## Disclaimer
 

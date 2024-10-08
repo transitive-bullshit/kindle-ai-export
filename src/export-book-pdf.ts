@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import 'dotenv/config'
 
 import fs from 'node:fs'
@@ -79,14 +78,10 @@ async function main() {
     if (needsNewPage) {
       doc.addPage()
     }
-    // const chunks = content.slice(index, Math.min(nextIndex, index + 2)) // for preview
-    const chunks = content.slice(index, nextIndex)
 
-    const text = chunks
-      .map((chunk) => chunk.text)
-      .join(' ')
-      .replaceAll(/\n+/g, '\n')
-      .replaceAll(/^\s*/gm, '')
+    // Aggregate all of the chunks in this chapter into a single string.
+    const chunks = content.slice(index, nextIndex)
+    const text = chunks.map((chunk) => chunk.text).join(' ')
 
     ;(doc as any).outline.addItem(tocItem.title)
     doc.fontSize(20)
@@ -103,13 +98,7 @@ async function main() {
 
     index = nextIndex
     needsNewPage = true
-    // break
   }
-
-  // for preview
-  // doc.addPage()
-  // doc.fontSize(20)
-  // doc.text('(End of Preview)', { align: 'center', lineGap: 16 })
 
   doc.end()
   await new Promise((resolve, reject) => {
@@ -118,9 +107,4 @@ async function main() {
   })
 }
 
-try {
-  await main()
-} catch (err) {
-  console.error('error', err)
-  process.exit(1)
-}
+await main()
