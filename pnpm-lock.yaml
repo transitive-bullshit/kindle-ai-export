@@ -36,8 +36,8 @@ importers:
         specifier: ^0.2.6
         version: 0.2.6
       openai-fetch:
-        specifier: ^3.2.0
-        version: link:../openai-fetch
+        specifier: ^3.3.0
+        version: 3.3.0
       p-map:
         specifier: ^7.0.2
         version: 7.0.2
@@ -1638,6 +1638,10 @@ packages:
   only-allow@1.2.1:
     resolution: {integrity: sha512-M7CJbmv7UCopc0neRKdzfoGWaVZC+xC1925GitKH9EAqYFzX9//25Q7oX4+jw0tiCCj+t5l6VZh8UPH23NZkMA==}
     hasBin: true
+
+  openai-fetch@3.3.0:
+    resolution: {integrity: sha512-KiMtMp0mLyDWnB57u2K7tip59P8U6xFiXw0RG7G+YOX+nW3sRCbJwI9clcSBJD1rAKNzvWygt+CbvVUPQRqtCw==}
+    engines: {node: '>=18'}
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -4002,6 +4006,10 @@ snapshots:
   only-allow@1.2.1:
     dependencies:
       which-pm-runs: 1.1.0
+
+  openai-fetch@3.3.0:
+    dependencies:
+      ky: 1.7.2
 
   optionator@0.9.4:
     dependencies:
