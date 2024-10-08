@@ -10,7 +10,7 @@
 
 - [Intro](#intro)
   - [How does it work?](#how-does-it-work)
-  - [Audiobook Examples](#audiobook-examples)
+  - [Audiobook Examples 🔥](#audiobook-examples-)
   - [Why is this necessary?](#why-is-this-necessary)
 - [Usage](#usage)
   - [Setup Env Vars](#setup-env-vars)
@@ -92,7 +92,7 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
             <a href="./examples/B0819W19WD/book-preview.md">Markdown output preview</a>
           </li>
           <li>
-            <a href="#audiobook-examples">Audiobook examples</a>
+            <a href="#audiobook-examples-">Audiobook examples</a>
           </li>
         </ul>
       </td>
@@ -100,9 +100,9 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
   </tbody>
 </table>
 
-### Audiobook Examples
+### Audiobook Examples 🔥
 
-We can even use TTS to generate custom audiobooks. 🔥
+We can even use TTS to generate custom audiobooks.
 
 Here are some auto-generated examples using a few different TTS providers & voices, containing only the first page of this book as a preview:
 
