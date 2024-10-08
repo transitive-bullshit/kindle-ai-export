@@ -16,7 +16,7 @@
   - [Setup Env Vars](#setup-env-vars)
   - [Extract Kindle Book](#extract-kindle-book)
   - [Transcribe Book Content](#transcribe-book-content)
-  - [Export Book as PDF](#export-book-as-pdf)
+  - [(Optional) Export Book as PDF](#optional-export-book-as-pdf)
   - [(Optional) Export Book as EPUB](#optional-export-book-as-epub)
   - [(Optional) Export Book as Markdown](#optional-export-book-as-markdown)
   - [(Optional) Export Book as AI-Narrated Audiobook 🔥](#optional-export-book-as-ai-narrated-audiobook-)
@@ -154,7 +154,10 @@ Make sure you have `node >= 18` and [pnpm](https://pnpm.io) installed.
 3. Set up environment variables ([details](#setup-env-vars))
 4. Run `src/extract-kindle-book.ts` ([details](#extract-kindle-book))
 5. Run `src/transcribe-book-contents.ts` ([details](#transcribe-book-content))
-6. Run `src/export-book-pdf.ts` ([details](#export-book-as-pdf))
+6. (Optional) Run `src/export-book-pdf.ts` ([details](#optional-export-book-as-pdf))
+7. (Optional) Export book as EPUB ([details](#optional-export-book-as-epub))
+8. (Optional) Run `src/export-book-markdown.ts` ([details](#optional-export-book-as-markdown))
+9. (Optional) Run `src/export-book-audio.ts` ([details](#optional-export-book-as-ai-narrated-audiobook-))
 
 ### Setup Env Vars
 
@@ -204,7 +207,7 @@ npx tsx src/transcribe-book-content.ts
 - The result is stored as JSON to `out/${asin}/content.json`.
 - Example: [examples/B0819W19WD/content.json](./examples/B0819W19WD/content.json)
 
-### Export Book as PDF
+### (Optional) Export Book as PDF
 
 ```sh
 npx tsx src/export-book-pdf.ts
