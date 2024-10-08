@@ -10,6 +10,7 @@
 
 - [Intro](#intro)
   - [How does it work?](#how-does-it-work)
+  - [Audiobook Examples](#audiobook-examples)
   - [Why is this necessary?](#why-is-this-necessary)
 - [Usage](#usage)
   - [Setup Env Vars](#setup-env-vars)
@@ -68,16 +69,12 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
         We then convert each page's screenshot into text using one of OpenAI's vLLMs (<strong>gpt-4o</strong> or <strong>gpt-4o-mini</strong>).
       </td>
       <td>
-<p>Mantell Sector, North Nekhebet, Resurgam, Delta Pavonis system, 2551</p>
-
-<p>There was a razorstorm coming in.</p>
-
-<p>Sylveste stood on the edge of the excavation and wondered if any of his labours would survive the night. The archaeological dig was an array of deep square shafts separated by baulks of sheer-sided soil: the classical Wheeler box-grid. The shafts went down tens of metres, walled by transparent cofferdams spun from hyperdiamond. A million years of stratified geological history pressed against the sheets. But it would take only one good dustfall—one good razorstorm—to fill the shafts almost to the surface.</p>
-
-<p>“Confirmation, sir,” said one of his team, emerging from the crouched form of the first crawler. The man’s voice was muffled behind his breather mask. “Cuvier’s just issued a severe weather advisory for the whole North</p>
-
-</td>
-</tr>
+        <p>Mantell Sector, North Nekhebet, Resurgam, Delta Pavonis system, 2551</p>
+        <p>There was a razorstorm coming in.</p>
+        <p>Sylveste stood on the edge of the excavation and wondered if any of his labours would survive the night. The archaeological dig was an array of deep square shafts separated by baulks of sheer-sided soil: the classical Wheeler box-grid. The shafts went down tens of metres, walled by transparent cofferdams spun from hyperdiamond. A million years of stratified geological history pressed against the sheets. But it would take only one good dustfall—one good razorstorm—to fill the shafts almost to the surface.</p>
+        <p>“Confirmation, sir,” said one of his team, emerging from the crouched form of the first crawler. The man’s voice was muffled behind his breather mask. “Cuvier’s just issued a severe weather advisory for the whole North</p>
+      </td>
+    </tr>
     <tr>
       <td>
         After doing this for each page, we now have access to the book's full contents and metadata, so we can export it in any format we want. 🎉
@@ -94,29 +91,45 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
           <li>
             <a href="./examples/B0819W19WD/book-preview.md">Markdown output preview</a>
           </li>
+          <li>
+            <a href="#audiobook-examples">Audiobook examples</a>
+          </li>
         </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Audiobook Examples
+
+We can even use TTS to generate custom audiobooks. 🔥
+
+Here are some examples using a few different TTS providers & voices, containing only the first page of this book as a preview:
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        OpenAI tts-1-hd "alloy" voice
+      </td>
+      <td>
+        <video src="https://github.com/user-attachments/assets/f634f2cc-cc65-4381-ba04-5fc59df69668"></video>
       </td>
     </tr>
     <tr>
       <td>
-        We can even use TTS to generate custom audiobooks. 🔥
+        OpenAI tts-1-hd "onyx" voice
       </td>
       <td>
-        <p>Here are some audiobook previews containing only the first page of this book:</p>
-        <ul>
-          <li>
-            <p>Audiobook preview using OpenAI's "alloy" voice (solid quality but expensive)</p>
-            <video src="https://github.com/user-attachments/assets/f634f2cc-cc65-4381-ba04-5fc59df69668"></video>
-          </li>
-          <li>
-            <p>Audiobook preview using OpenAI's "onyx" voice (solid quality but expensive)</p>
-            <video src="https://github.com/user-attachments/assets/5cc86ae3-9f82-414c-a69f-a2ab40db4ce1"></video>
-          </li>
-          <li>
-            <p>Audiobook preview using Unreal Speech's "scarlett" voice (medium quality but cheaper)</p>
-            <video src="https://github.com/user-attachments/assets/232e5258-9f89-4493-a06b-5523ddf93226"></video>
-          </li>
-        </ul>
+        <video src="https://github.com/user-attachments/assets/5cc86ae3-9f82-414c-a69f-a2ab40db4ce1"></video>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        Unreal Speech "Scarlett" voice
+      </td>
+      <td>
+        <video src="https://github.com/user-attachments/assets/232e5258-9f89-4493-a06b-5523ddf93226"></video>
       </td>
     </tr>
   </tbody>
