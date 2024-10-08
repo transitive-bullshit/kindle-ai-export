@@ -25,15 +25,36 @@ type TTSEngine = 'openai' | 'unrealspeech'
 async function main() {
   const asin = getEnv('ASIN')
   assert(asin, 'ASIN is required')
+
+  // If force mode, we'll always regenerate all of the audio files.
   const force = getEnv('FORCE') === 'true'
 
+  // In preview mode, we only export the first page of the book.
+  const isPreview = getEnv('AUDIOBOOK_PREVIEW') === 'true'
+
   const outDir = path.join('out', asin)
-  const audioOutDir = path.join(outDir, 'audio')
+  const audioOutDir = path.join(outDir, isPreview ? 'audio-previews' : 'audio')
   await fs.mkdir(audioOutDir, { recursive: true })
 
-  const content = JSON.parse(
-    await fs.readFile(path.join(outDir, 'content.json'), 'utf8')
-  ) as ContentChunk[]
+  const content = (
+    JSON.parse(
+      await fs.readFile(path.join(outDir, 'content.json'), 'utf8')
+    ) as ContentChunk[]
+  )
+    .filter((c) => !isPreview || c.page === 1)
+    .concat(
+      isPreview
+        ? [
+            {
+              index: 2,
+              page: 2,
+              text: '\n\nEnd of preview',
+              screenshot: ''
+            }
+          ]
+        : []
+    )
+
   const metadata = JSON.parse(
     await fs.readFile(path.join(outDir, 'metadata.json'), 'utf8')
   ) as BookMetadata
@@ -49,14 +70,14 @@ async function main() {
   )
   const openaiEngineParams: Omit<SpeechParams, 'input'> = {
     model: 'tts-1-hd',
-    voice: 'alloy',
+    voice: (getEnv('OPENAI_TTS_VOICE') as any) ?? 'alloy',
     response_format: 'mp3'
   }
   const unrealSpeechEngineParams: Omit<
     Parameters<UnrealSpeechClient['speech']>[0],
     'text'
   > = {
-    voiceId: 'Scarlett'
+    voiceId: getEnv('UNREAL_SPEECH_VOICE') ?? 'Scarlett'
   }
   const ttsEngineParams: any =
     ttsEngine === 'openai' ? openaiEngineParams : unrealSpeechEngineParams
@@ -92,7 +113,7 @@ async function main() {
 
   batches.push({
     title,
-    text: `${title}
+    text: `Audiobook Preview of ${title}
 
 By ${authors.join(', ')}`
   })
@@ -103,10 +124,17 @@ By ${authors.join(', ')}`
     if (tocItem.page === undefined) continue
 
     const nextTocItem = metadata.toc[i + 1]!
-    const nextIndex = nextTocItem.page
-      ? content.findIndex((c) => c.page >= nextTocItem.page!)
+    let nextIndex = nextTocItem.page
+      ? content.findIndex(
+          (c, j) =>
+            c.page >= nextTocItem.page! ||
+            (isPreview && j === content.length - 1)
+        )
       : content.length
-    if (nextIndex < index) continue
+    if (nextIndex < index || (isPreview && nextIndex === index)) continue
+    if (isPreview) {
+      nextIndex = content.length
+    }
     // lastTocItemIndex = i
 
     // Aggregate the text
@@ -158,9 +186,9 @@ ${text}`.split('\n\n')
 
   console.log()
   console.log(batches)
-  console.log()
-  console.log(`Generating audio for ${batches.length} batches to ${ttsOutDir}`)
-  console.log()
+  console.log(
+    `\nGenerating audio for ${batches.length} batches to ${ttsOutDir}`
+  )
   const audioPadding = `${batches.length}`.length
 
   const audioChunks = await pMap(
@@ -198,7 +226,7 @@ ${text}`.split('\n\n')
       await fs.writeFile(audioFilePath, Buffer.from(audio))
       return result
     },
-    { concurrency: 16 }
+    { concurrency: 32 }
   )
 
   const audioParts = await pMap(
@@ -219,7 +247,7 @@ ${text}`.split('\n\n')
         duration
       }
     },
-    { concurrency: 16 }
+    { concurrency: 32 }
   )
 
   const audioConcatInputFilePath = path.join(ttsOutDir, 'files.txt')
@@ -232,6 +260,10 @@ ${text}`.split('\n\n')
   const expectedDurationMs =
     audioParts.reduce((duration, a) => duration + a.duration, 0) * 1000
 
+  console.log(
+    `\nUsing ffmpeg to concat audiobook from ${audioParts.length} files...`
+  )
+
   // Use ffmpeg to concatenate the audio files into a single audiobook file.
   await new Promise<void>((resolve, reject) => {
     ffmpeg(audioConcatInputFilePath)
@@ -239,14 +271,12 @@ ${text}`.split('\n\n')
       .withOptions([
         // metadata (mp3 tags)
         '-metadata',
-        `title="${title}"`
+        `title="${isPreview ? 'Preview of ' : ''}${title}"`
         // TODO: fluent-ffmpeg is choking on this metadata tag for some reason
         // '-metadata',
         // `artist="${authors.join('/')}"`,
         // '-metadata',
         // `encoded_by="https://github.com/transitive-bullshit/kindle-ai-export"`
-        // '-metadata',
-        // `WCOM="https://www.amazon.com/dp/${asin}"`
       ])
       .outputOptions([
         // misc
@@ -278,9 +308,10 @@ ${text}`.split('\n\n')
     await new Promise<void>((resolve, reject) => {
       const res = ID3.update(
         {
-          title,
+          title: isPreview ? `Preview of ${title}` : title,
           artist: authors.join('/'),
-          encodedBy: 'https://github.com/transitive-bullshit/kindle-ai-export'
+          encodedBy: 'https://github.com/transitive-bullshit/kindle-ai-export',
+          commercialUrl: [`https://www.amazon.com/dp/${asin}`]
           // image: 'https://m.media-amazon.com/images/I/41sMaof0iQL.jpg', // TODO
           // TODO: these tags don't seem to be working properly in the node-id3 library
           // chapter: metadata.toc
@@ -345,7 +376,7 @@ ${text}`.split('\n\n')
     )
   }
 
-  console.log(`Audiobook generated: ${audiobookOutputFilePath}`)
+  console.log(`\nGenerated audiobook: ${audiobookOutputFilePath}`)
 }
 
 async function ffmpegProbe(filePath: string) {

@@ -18,6 +18,7 @@
   - [Export Book as PDF](#export-book-as-pdf)
   - [(Optional) Export Book as EPUB](#optional-export-book-as-epub)
   - [(Optional) Export Book as Markdown](#optional-export-book-as-markdown)
+  - [(Optional) Export as AI-Narrated Audiobook 🔥](#optional-export-as-ai-narrated-audiobook-)
 - [Disclaimer](#disclaimer)
 - [Author's Notes](#authors-notes)
   - [Alternative Approaches](#alternative-approaches)
@@ -82,14 +83,19 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
         After doing this for each page, we now have access to the book's full contents and metadata, so we can export it in any format we want. 🎉
       </td>
       <td>
-        Here's a <a href="./examples/B0819W19WD/book-preview.pdf">preview of the PDF output</a> containing only the first page of this book for example purposes.
+        Here are some output previews containing only the first page of this book:
+        <ul>
+          <li>
+            <a href="./examples/B0819W19WD/book-preview.pdf">PDF output preview</a>
+          </li>
+          <li>
+            <a href="./examples/B0819W19WD/book-preview.md">Markdown output preview</a>
+          </li>
+        </ul>
       </td>
     </tr>
   </tbody>
 </table>
-
-> [!NOTE]
-> Exporting audiobooks with AI-generated voice narration is coming soon! Please star the repo if you're interested in this feature.
 
 ### Why is this necessary?
 
@@ -114,7 +120,7 @@ Make sure you have `node >= 18` and [pnpm](https://pnpm.io) installed.
 
 ### Setup Env Vars
 
-Set up these environment variables in a local `.env`:
+Set up these required environment variables in a local `.env`:
 
 ```sh
 AMAZON_EMAIL=
@@ -132,7 +138,7 @@ You can find your book's [ASIN](https://en.wikipedia.org/wiki/Amazon_Standard_Id
 npx tsx src/extract-kindle-book.ts
 ```
 
-- **This takes a few minutes to run.**
+- _(This takes a few minutes to run)_
 - This logs into your [Amazon Kindle web reader](https://read.amazon.com) using headless Chrome ([Playwright](https://playwright.dev)). It can be pretty fun to watch it run, so feel free to tweak the script to use `headless: false` to watch it do its thing.
 - If your account requires 2FA, the terminal will request a code from you before proceeding.
 - It uses a persistent browser session, so you should only have to auth once.
@@ -140,8 +146,10 @@ npx tsx src/extract-kindle-book.ts
 - Then it changes the reader settings to use a single column and a sans-serif font.
 - Then it extracts the book's table of contents.
 - Then it goes through each page of the book's main contents and saves a PNG screenshot of the rendered content to `out/${asin}/pages/${index}-${page}.png`.
+- Example: [examples/B0819W19WD/pages](./examples/B0819W19WD/pages)
 - Lastly, it resets the reader to the original position so your reading progress isn't affected.
 - It also records some JSON metadata with the TOC, book title, author, product image, etc to `out/${asin}/metadata.json`.
+- Example: [examples/B0819W19WD/metadata.json](./examples/B0819W19WD/metadata.json)
 
 > [!NOTE]
 > I'm pretty sure Kindle's web reader uses WebGL at least in part to render the page contents, because the content pages failed to generate when running this on a VM ([Browserbase](https://www.browserbase.com)). So if you're getting blank or invalid page screenshots, that may be the reason.
@@ -152,10 +160,11 @@ npx tsx src/extract-kindle-book.ts
 npx tsx src/transcribe-book-content.ts
 ```
 
-- **This takes a few minutes to run.**
+- _(This takes a few minutes to run)_
 - This takes each of the page screenshots and runs them through a vLLM (`gpt-4o` or `gpt-4o-mini`) to extract the raw text content from each page of the book.
 - It then stitches these text chunks together, taking into account chapter boundaries.
 - The result is stored as JSON to `out/${asin}/content.json`.
+- Example: [examples/B0819W19WD/content.json](./examples/B0819W19WD/content.json)
 
 ### Export Book as PDF
 
@@ -163,10 +172,11 @@ npx tsx src/transcribe-book-content.ts
 npx tsx src/export-book-pdf.ts
 ```
 
-- This should run almost instantly.
+- _(This should run instantly)_
 - It uses [PDFKit](https://github.com/foliojs/pdfkit) under the hood.
 - It includes a valid table of contents for easy navigation.
 - The result is stored to `out/${asin}/book.pdf`.
+- Example: [examples/B0819W19WD/book-preview.pdf](./examples/B0819W19WD/book-preview.pdf)
 
 ### (Optional) Export Book as EPUB
 
@@ -185,8 +195,33 @@ _([ebook-convert docs](https://manual.calibre-ebook.com/generated/en/ebook-conve
 npx tsx src/export-book-markdown.ts
 ```
 
-- This should run instantly.
+- _(This should run instantly)_
 - The result is stored to `out/${asin}/book.md`.
+- Example: [examples/B0819W19WD/book-preview.md](./examples/B0819W19WD/book-preview.md)
+
+### (Optional) Export as AI-Narrated Audiobook 🔥
+
+```sh
+npx tsx src/export-book-audio.ts
+```
+
+- _This takes a few minutes to run._
+- We support two TTS engines: [OpenAI TTS](https://platform.openai.com/docs/models/tts) and [Unreal Speech TTS](https://unrealspeech.com).
+  - To use OpenAI, set `TTS_ENGINE=openai` (the default)
+  - To use Unreal Speech, set `TTS_ENGINE=unrealspeech` and `UNREAL_SPEECH_API_KEY=(your-api-key)`
+  - OpenAI is higher quality but more expensive; Unreal Speech is medium quality and cheaper
+  - To set the OpenAI voice, use `OPENAI_TTS_VOICE=onyx` (defaults to `alloy`)
+  - To set the Unreal Speech voice, use `UNREAL_SPEECH_VOICE='Scarlett'` (defaults to `Scarlett`)
+  - OpenAI TTS for a full novel (~1M tokens) is approximately **$30** (1.5GB MP3 ~21 hours long)
+  - Unreal Speech TTS for a full novel (~1M tokens) is approximately **$2** (1.7GB MP3 ~23 hours long)
+  - It should be pretty easy to support other TTS providers in the future.
+- The TTS will be broken up into reasonly sized chunks and stored in `mp3` files under `out/${asin}/audio/<tts-engine-hash>/`.
+  - The `<tts-engine-hash>` directory is based on the TTS engine settings and book contents
+- After generating audio for each chunk, we use `ffmpeg` to concat them together.
+  - You need to have `ffmpeg` installed locally for this to work
+  - On Mac, `brew install ffmpeg` ([or install with more options](https://stackoverflow.com/a/55108365/2353599))
+- The resulting audiobook is stored to `out/${asin}/audio/<tts-engine-hash>/audiobook.mp3`.
+- Examples: [examples/B0819W19WD/audio-previews](./examples/B0819W19WD/audio-previews)
 
 ## Disclaimer
 
