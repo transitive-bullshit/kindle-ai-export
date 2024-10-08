@@ -94,32 +94,33 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
           <li>
             <a href="./examples/B0819W19WD/book-preview.md">Markdown output preview</a>
           </li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        We can even use TTS to generate custom audiobooks. 🔥
+      </td>
+      <td>
+        <p>Here are some audiobook previews containing only the first page of this book:</p>
+        <ul>
           <li>
-            <a href="./examples/B0819W19WD/audio-previews/openai-alloy-preview.mp3">Audiobook preview using OpenAI's "alloy" voice</a> (solid quality but expensive)
+            <p>Audiobook preview using OpenAI's "alloy" voice (solid quality but expensive)</p>
             <video src="https://github.com/user-attachments/assets/f634f2cc-cc65-4381-ba04-5fc59df69668"></video>
           </li>
           <li>
-            <a href="./examples/B0819W19WD/audio-previews/openai-onyx-preview.mp3">Audiobook preview using OpenAI's "onyx" voice</a> (solid quality but expensive)
+            <p>Audiobook preview using OpenAI's "onyx" voice (solid quality but expensive)</p>
+            <video src="https://github.com/user-attachments/assets/5cc86ae3-9f82-414c-a69f-a2ab40db4ce1"></video>
           </li>
           <li>
-            <a href="./examples/B0819W19WD/audio-previews/unrealspeech-scarlett-preview.mp3">Audiobook preview using Unreal Speech's "scarlett" voice</a> (medium quality but cheaper)
-
-[unrealspeech-scarlett-preview.mp4](https://github.com/user-attachments/assets/232e5258-9f89-4493-a06b-5523ddf93226)
-</li>
-</ul>
-</td>
-</tr>
-
+            <p>Audiobook preview using Unreal Speech's "scarlett" voice (medium quality but cheaper)</p>
+            <video src="https://github.com/user-attachments/assets/232e5258-9f89-4493-a06b-5523ddf93226"></video>
+          </li>
+        </ul>
+      </td>
+    </tr>
   </tbody>
 </table>
-
----
-
-[openai-alloy-preview.mp4](https://github.com/user-attachments/assets/f634f2cc-cc65-4381-ba04-5fc59df69668)
-
-[openai-onyx-preview.mp4](https://github.com/user-attachments/assets/5cc86ae3-9f82-414c-a69f-a2ab40db4ce1)
-
-[unrealspeech-scarlett-preview.mp4](https://github.com/user-attachments/assets/232e5258-9f89-4493-a06b-5523ddf93226)
 
 ### Why is this necessary?
 
