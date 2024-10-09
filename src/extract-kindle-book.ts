@@ -167,7 +167,10 @@ async function main() {
   }
 
   async function getPageNav() {
-    const footerText = await page.locator('ion-footer ion-title').first().textContent()
+    const footerText = await page
+      .locator('ion-footer ion-title')
+      .first()
+      .textContent()
     return parsePageNav(footerText)
   }
 
