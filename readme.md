@@ -153,7 +153,7 @@ Make sure you have `node >= 18` and [pnpm](https://pnpm.io) installed.
 2. Run `pnpm install`
 3. Set up environment variables ([details](#setup-env-vars))
 4. Run `src/extract-kindle-book.ts` ([details](#extract-kindle-book))
-5. Run `src/transcribe-book-contents.ts` ([details](#transcribe-book-content))
+5. Run `src/transcribe-book-content.ts` ([details](#transcribe-book-content))
 6. (Optional) Run `src/export-book-pdf.ts` ([details](#optional-export-book-as-pdf))
 7. (Optional) Export book as EPUB ([details](#optional-export-book-as-epub))
 8. (Optional) Run `src/export-book-markdown.ts` ([details](#optional-export-book-as-markdown))
