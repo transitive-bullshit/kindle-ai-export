@@ -34,8 +34,8 @@
     "openai-fetch": "^3.3.1",
     "p-map": "^7.0.2",
     "pdfkit": "^0.15.0",
-    "playwright": "^1.47.2",
-    "playwright-core": "^1.47.2",
+    "playwright": "^1.48.0",
+    "playwright-core": "^1.48.0",
     "unrealspeech-api": "^1.0.2"
   },
   "devDependencies": {
@@ -51,7 +51,7 @@
     "npm-run-all2": "^6.2.2",
     "only-allow": "^1.2.1",
     "prettier": "^3.3.3",
-    "typescript": "^5.5.4",
+    "typescript": "^5.6.3",
     "vitest": "2.1.2"
   }
 }
