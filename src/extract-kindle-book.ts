@@ -16,6 +16,8 @@ import {
   parseJsonpResponse
 } from './utils'
 
+import * as os from 'os'
+
 interface PageNav {
   page?: number
   location?: number
@@ -44,11 +46,23 @@ async function main() {
   const krRendererMainImageSelector = '#kr-renderer .kg-full-page-img img'
   const bookReaderUrl = `https://read.amazon.com/?asin=${asin}`
 
+  //Switch for multi-OS operation
+  const getChromeExecutablePath = () => {
+    switch (os.platform()) {
+      case 'win32':
+        return 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+      case 'darwin':
+        return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+      default:
+        return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    }
+  }
+  const chromePath = getChromeExecutablePath();
+
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     channel: 'chrome',
-    executablePath:
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    executablePath: chromePath,
     args: ['--hide-crash-restore-bubble'],
     ignoreDefaultArgs: ['--enable-automation'],
     deviceScaleFactor: 2,
@@ -259,7 +273,9 @@ async function main() {
     if (pageNav?.page === undefined) {
       break
     }
-    if (pageNav.page > totalContentPages) {
+    // If we reached the last page, break the loop. The equal sign ensures this.
+    if (pageNav.page >= totalContentPages) {
+      console.log("Last page reached.")
       break
     }
 
@@ -334,10 +350,6 @@ async function main() {
         .locator(krRendererMainImageSelector)
         .getAttribute('src')
       if (newSrc !== src) {
-        break
-      }
-
-      if (pageNav.page >= totalContentPages) {
         break
       }
 
