@@ -385,7 +385,8 @@ async function main() {
     if (pageNav?.page === undefined) {
       break
     }
-    if (pageNav.page > totalContentPages) {
+    if (pageNav.page >= totalContentPages) {
+      console.log('reached last page')
       break
     }
 
