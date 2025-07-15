@@ -268,6 +268,59 @@ async function main() {
   const $tocItems = await page.locator('ion-list ion-item').all()
   const tocItems: Array<TocItem> = []
 
+  async function fileExists(path) {
+    // alternative to fs.exists
+    // https://stackoverflow.com/questions/17699599/node-js-check-if-file-exists
+    try {
+      await fs.stat(path)
+      return true
+    }
+    catch (exc) {
+      // Error: ENOENT: no such file or directory
+      return false
+    }
+  }
+
+  async function readTocItemsCache(tocItems, tocItemsCachePath) {
+    if (!(await fileExists(tocItemsCachePath))) {
+      // no such file, or file not readable
+      console.log(`not reading cache ${tocItemsCachePath}`)
+      return
+    }
+    const tocItemsCachePathTrash = `${tocItemsCachePath}.trash.${Date.now()}`
+    let tocItemsCached = null
+    try {
+      tocItemsCached = JSON.parse(await fs.readFile(tocItemsCachePath, { encoding: 'utf8' }))
+      if (!Array.isArray(tocItemsCached)) {
+        throw new Error('tocItemsCached is not an array')
+      }
+      if (tocItemsCached.length == 0) {
+        throw new Error('tocItemsCached is an empty array')
+      }
+    }
+    catch (exc) {
+      console.log(`error: failed to read cache ${tocItemsCachePath} - ${exc} - moving file to ${tocItemsCachePathTrash}`)
+      await fs.rename(tocItemsCachePath, tocItemsCachePathTrash)
+      return
+    }
+    console.log(`reading cache ${tocItemsCachePath}`)
+    for (const tocItem of tocItemsCached) {
+      tocItems.push(tocItem)
+    }
+  }
+
+  async function writeTocItemsCache(tocItems, tocItemsCachePath) {
+    console.log(`writing cache ${tocItemsCachePath}`)
+    await fs.writeFile(tocItemsCachePath, JSON.stringify(tocItems), { encoding: 'utf8' })
+  }
+
+  const tocItemsCachePath = `${outDir}/tocItems.json`
+
+  await readTocItemsCache(tocItems, tocItemsCachePath)
+
+  if (tocItems.length == 0) {
+    // TODO indent ...
+    // /run/current-system/sw/bin/chromium
   console.warn(`initializing ${$tocItems.length} TOC items...`)
   for (const tocItem of $tocItems) {
     await tocItem.scrollIntoViewIfNeeded()
@@ -297,14 +350,17 @@ async function main() {
       break
     }
   }
+    // ... TODO indent
+    await writeTocItemsCache()
+  }
 
   const parsedToc = parseTocItems(tocItems)
   const toc: TocItem[] = tocItems.map(({ locator: _, ...tocItem }) => tocItem)
 
   const total = parsedToc.firstPageTocItem.total
   const pagePadding = `${total * 2}`.length
-  await parsedToc.firstPageTocItem.locator!.scrollIntoViewIfNeeded()
-  await parsedToc.firstPageTocItem.locator!.click()
+  await page.locator(parsedToc.firstPageTocItem.locator._selector)!.scrollIntoViewIfNeeded()
+  await page.locator(parsedToc.firstPageTocItem.locator._selector)!.click()
 
   const totalContentPages = Math.min(
     parsedToc.afterLastPageTocItem?.page
