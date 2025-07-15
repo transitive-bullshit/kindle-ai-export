@@ -302,13 +302,18 @@ async function main() {
 
     const index = pages.length
 
+    console.log('getting image source of krRendererMainImageSelector ...')
     const src = await page
       .locator(krRendererMainImageSelector)
       .getAttribute('src')
+    console.log('getting image source of krRendererMainImageSelector done')
 
+    // FIXME this hangs after some pages
+    console.log('taking screenshot of krRendererMainImageSelector ...')
     const b = await page
       .locator(krRendererMainImageSelector)
       .screenshot({ type: 'png', scale: 'css' })
+    console.log('taking screenshot of krRendererMainImageSelector done')
 
     const screenshotPath = path.join(
       pageScreenshotsDir,
