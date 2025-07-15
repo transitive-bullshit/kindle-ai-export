@@ -6,6 +6,7 @@ import path from 'node:path'
 import { globby } from 'globby'
 import { OpenAIClient } from 'openai-fetch'
 import pMap from 'p-map'
+import delay from 'delay'
 
 import type { ContentChunk } from './types'
 import { assert, getEnv } from './utils'
@@ -107,6 +108,7 @@ Do not include any additional text, descriptions, or punctuation. Ignore any emb
           } while (true)
         } catch (err) {
           console.error(`error processing image ${index} (${screenshot})`, err)
+          await delay(2000)
         }
       },
       { concurrency: 16 }
