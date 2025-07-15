@@ -90,6 +90,52 @@ async function main() {
   let info: BookInfo | undefined
   let meta: BookMeta | undefined
 
+  function fixDoubleUTF8(str) {
+    return str
+      .replace(/Ã¼/g, 'ü')
+      .replace(/Ã¤/g, 'ä')
+      .replace(/Ã¶/g, 'ö')
+      .replace(/ÃŸ/g, 'ß')
+      .replace(/Ã©/g, 'é')
+      .replace(/Ã /g, 'à')
+      .replace(/Ã¢/g, 'â')
+      .replace(/Ã´/g, 'ô')
+      .replace(/Ã®/g, 'î')
+      .replace(/Ã»/g, 'û')
+      .replace(/Ã‰/g, 'É')
+      .replace(/Ã‡/g, 'Ç')
+      // TODO more
+  }
+
+  // from https://m.media-amazon.com/images/I/81m1+3DitYL.js
+  // FIXME "Ã¼ber groÃŸe" is decoded to "über groøe" but should be "über große"
+  /**
+  * UTF8 decodes a string.
+  * @param {Object} input String to decode.
+  */
+  function utf8Decode(input) {
+    var string = [];
+    var i = 0;
+    var c, c1, c2;
+    while (i < input.length) {
+      c = input.charCodeAt(i);
+      if (c < 128) {
+        string.push(String.fromCharCode(c));
+        i++;
+      } else if ((c > 191) && (c < 224)) {
+        c1 = input.charCodeAt(i + 1);
+        string.push(String.fromCharCode(((c & 31) << 6) | (c1 & 63)));
+        i += 2;
+      } else {
+        c1 = input.charCodeAt(i + 1);
+        c2 = input.charCodeAt(i + 2);
+        string.push(String.fromCharCode(((c & 15) << 12) | ((c1 & 63) << 6) | (c2 & 63)));
+        i += 3;
+      }
+    }
+    return string.join('');
+  }
+
   page.on('response', async (response) => {
     try {
       const status = response.status()
@@ -107,7 +153,16 @@ async function main() {
         delete body.YJFormatVersion
         info = body
       } else if (url.pathname.endsWith('YJmetadata.jsonp')) {
-        const body = await response.text()
+        let body = await response.text()
+        console.log(`writing ${path.join(outDir, 'metadata.response.json')}`)
+        await fs.writeFile(
+          path.join(outDir, 'metadata.response.json'),
+          body
+        )
+        // try to decode cryptic utf8 encoding
+        // body = Buffer.from(body, 'ascii').toString('utf-8') // no
+        body = fixDoubleUTF8(body)
+        // body = utf8Decode(body)
         const metadata = parseJsonpResponse<any>(body)
         if (metadata.asin !== asin) return
         delete metadata.cpr
@@ -115,6 +170,11 @@ async function main() {
           metadata.authorsList = normalizeAuthors(metadata.authorsList)
         }
         meta = metadata
+        console.log(`writing ${path.join(outDir, 'metadata.base.json')}`)
+        await fs.writeFile(
+          path.join(outDir, 'metadata.base.json'),
+          JSON.stringify(metadata, null, 2)
+        )
       }
     } catch {}
   })
