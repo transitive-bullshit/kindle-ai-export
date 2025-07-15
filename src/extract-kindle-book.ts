@@ -538,6 +538,13 @@ async function main() {
 
   await page.close()
   await context.close()
+
+  console.log(`hint: next steps:`)
+  console.log(`  npx tsx src/transcribe-book-content.ts`)
+  console.log(`  npx tsx src/export-book-pdf.ts`)
+  console.log(`  ebook-convert out/${asin}/book.pdf out/${asin}/book.epub --enable-heuristics`)
+  console.log(`  npx tsx src/export-book-markdown.ts`)
+  console.log(`  npx tsx src/export-book-audio.ts`)
 }
 
 function parsePageNav(text: string | null): PageNav | undefined {
