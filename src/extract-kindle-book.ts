@@ -132,6 +132,18 @@ async function main() {
     // await page.locator('input[type="checkbox"]').click()
     await page.locator('input[type="submit"]').click()
 
+    // wait for signin
+    while (true) {
+      const u = page.url()
+      if (u == 'https://www.amazon.com/ap/signin') {
+        console.log(`signin loading: url = ${u}`);
+        await delay(1000)
+        continue
+      }
+      console.log(`signin done: url = ${u}`);
+      break
+    }
+
     // FIXME only ask for 2FA code if needed
     if (!/\/kindle-library/g.test(new URL(page.url()).pathname)) {
       const code = await input({
