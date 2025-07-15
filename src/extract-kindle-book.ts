@@ -144,8 +144,22 @@ async function main() {
       break
     }
 
-    // FIXME only ask for 2FA code if needed
-    if (!/\/kindle-library/g.test(new URL(page.url()).pathname)) {
+    const pageUrl = new URL(page.url())
+    if (pageUrl.pathname == '/kindle-library') {
+      // the book library is loaded (default startpage)
+    }
+    else if (
+      pageUrl.pathname == '/' &&
+      pageUrl.searchParams.size == 1 &&
+      pageUrl.searchParams.get('asin') != null
+    ) {
+      // if a book was loaded before, kindle continues at the previous session
+    }
+    // TODO better check for 2FA page
+    // try to locate input elements
+    else {
+      console.log('unknown pageUrl:', pageUrl)
+      console.log('assuming 2-factor auth page')
       const code = await input({
         message: '2-factor auth code?'
       })
