@@ -151,6 +151,8 @@ async function main() {
         delete body.karamelToken
         delete body.metadataUrl
         delete body.YJFormatVersion
+        delete body.lastPageReadData // remove deviceName with username
+        delete body.kindleSessionId
         info = body
       } else if (url.pathname.endsWith('YJmetadata.jsonp')) {
         let body = await response.text()
