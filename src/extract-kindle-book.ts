@@ -6,6 +6,7 @@ import path from 'node:path'
 import { input } from '@inquirer/prompts'
 import delay from 'delay'
 import { chromium, type Locator } from 'playwright'
+import which from 'which'
 
 import type { BookInfo, BookMeta, BookMetadata, PageChunk } from './types'
 import {
@@ -44,11 +45,41 @@ async function main() {
   const krRendererMainImageSelector = '#kr-renderer .kg-full-page-img img'
   const bookReaderUrl = `https://read.amazon.com/?asin=${asin}`
 
+  async function getChromeExecutablePath() {
+    // find chrome executable path
+    // examples:
+    // '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+    // '/usr/bin/chromium'
+    // '/run/current-system/sw/bin/chromium'
+    const executableNameList = [
+      // TODO prefer CHROME_EXECUTABLE_PATH from env
+      // env.CHROME_EXECUTABLE_PATH,
+      'Google Chrome',
+      'chromium',
+      'chromium.exe',
+      'chrome',
+      'chrome.exe',
+      // TODO more
+    ]
+    let executablePath = null
+    for (const executableName of executableNameList) {
+      if (!executableName) continue
+      executablePath = await which(executableName, { nothrow: true })
+      if (executablePath) break
+    }
+    if (executablePath == null) {
+      throw new Error('failed to find chrome executable')
+    }
+    console.log(`found chrome executable ${executablePath}`)
+    return executablePath
+  }
+
+  const executablePath = await getChromeExecutablePath()
+
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     channel: 'chrome',
-    executablePath:
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    executablePath: executablePath,
     args: ['--hide-crash-restore-bubble'],
     ignoreDefaultArgs: ['--enable-automation'],
     deviceScaleFactor: 2,
