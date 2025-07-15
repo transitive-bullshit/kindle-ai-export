@@ -378,7 +378,7 @@ async function main() {
     `reading ${totalContentPages} pages${total > totalContentPages ? ` (of ${total} total pages stopping at "${parsedToc.afterLastPageTocItem!.title}")` : ''}...`
   )
 
-  do {
+  while (true) {
     const pageNav = await getPageNav()
     if (pageNav?.page === undefined) {
       break
@@ -431,7 +431,7 @@ async function main() {
 
     // Occasionally the next page button doesn't work, so ensure that the main
     // image src actually changes before continuing.
-    do {
+    while (true) {
       try {
         // Navigate to the next page
         // await delay(100)
@@ -473,8 +473,8 @@ async function main() {
       await delay(100)
 
       ++retries
-    } while (true)
-  } while (true)
+    }
+  }
 
   const result: BookMetadata = { info: info!, meta: meta!, toc, pages }
   await fs.writeFile(
