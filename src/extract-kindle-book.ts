@@ -192,6 +192,27 @@ async function main() {
     })
   }
 
+  /*
+  <div class="alert-wrapper ion-overlay-wrapper sc-ion-alert-ios">
+    <div class="alert-head sc-ion-alert-ios">
+      <h2 id="alert-7-hdr" class="alert-title sc-ion-alert-ios">Most Recent Page Read</h2>
+    </div>
+    <div id="alert-7-msg" class="alert-message sc-ion-alert-ios">
+      You're on page 1. The most recent page is 10 from "swim's Kindle Cloud Reader" at 04:20 pm on Jan 01, 2025. Go to page 10?
+    </div>
+    <div class="alert-button-group sc-ion-alert-ios">
+      <button type="button" class="alert-button ion-focusable ion-activatable secondary sc-ion-alert-ios" tabindex="0">
+        <span class="alert-button-inner sc-ion-alert-ios">No</span>
+      </button>
+      <button type="button" class="alert-button ion-focusable ion-activatable sc-ion-alert-ios" tabindex="0">
+        <span class="alert-button-inner sc-ion-alert-ios">Yes</span>
+      </button>
+    </div>
+  </div>
+  */
+  // TODO handle different alerts
+  // div#alert-7-msg + div.alert-button-group button.secondary
+
   async function dismissPossibleAlert() {
     const $alertNo = page.locator('ion-alert button', { hasText: 'No' })
     if (await $alertNo.isVisible()) {
