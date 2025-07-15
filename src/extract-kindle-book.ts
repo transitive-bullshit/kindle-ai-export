@@ -131,20 +131,30 @@ async function main() {
   // await page.waitForURL('**/signin')
 
   async function updateSettings() {
-    await page.locator('ion-button[title="Reader settings"]').click()
+    const selectorReaderSettings = 'button[aria-label="Reader settings"]'
+    // <button type="button" class="button-native" part="native" aria-label="Reader settings">
+    console.log('opening Reader settings ...')
+    await page.locator(selectorReaderSettings).click()
+    console.log('opening Reader settings done')
     await delay(1000)
 
     // Change font to Amazon Ember
+    // <span id="AmazonEmber" class="font-family-selector" tabindex="0" role="radio" aria-checked="false">
+    console.log('setting font ...')
     await page.locator('#AmazonEmber').click()
+    console.log('setting font done')
+    await delay(1000)
 
     // Change layout to single column
-    await page
-      .locator('[role="radiogroup"][aria-label$=" columns"]', {
-        hasText: 'Single Column'
-      })
-      .click()
+    console.log('setting single column layout ...')
+    // <span aria-label="Single Column" id="columns-1" value="1" role="radio" name="column-selector" aria-checked="false" tabindex="0">
+    await page.locator('#columns-1').click()
+    console.log('setting single column layout done')
+    await delay(1000)
 
-    await page.locator('ion-button[title="Reader settings"]').click()
+    console.log('closing Reader settings ...')
+    await page.locator(selectorReaderSettings).click()
+    console.log('closing Reader settings done')
     await delay(1000)
   }
 
