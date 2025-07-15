@@ -101,6 +101,7 @@ async function main() {
     // await page.locator('input[type="checkbox"]').click()
     await page.locator('input[type="submit"]').click()
 
+    // FIXME only ask for 2FA code if needed
     if (!/\/kindle-library/g.test(new URL(page.url()).pathname)) {
       const code = await input({
         message: '2-factor auth code?'
