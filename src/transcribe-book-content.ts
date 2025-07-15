@@ -22,6 +22,51 @@ async function main() {
 
   const openai = new OpenAIClient()
 
+  async function fileExists(path) {
+    // alternative to fs.exists
+    // https://stackoverflow.com/questions/17699599/node-js-check-if-file-exists
+    try {
+      await fs.stat(path)
+      return true
+    }
+    catch (exc) {
+      // Error: ENOENT: no such file or directory
+      return false
+    }
+  }
+
+  async function readTranscribeResultCache(transcribeResultCachePath) {
+    if (!(await fileExists(transcribeResultCachePath))) {
+      // no such file, or file not readable
+      // console.log(`not reading cache ${transcribeResultCachePath}`)
+      return null
+    }
+    const transcribeResultCachePathTrash = `${transcribeResultCachePath}.trash.${Date.now()}`
+    let transcribeResultCached = null
+    try {
+      transcribeResultCached = JSON.parse(await fs.readFile(transcribeResultCachePath, { encoding: 'utf8' }))
+      if (typeof(transcribeResultCached) != 'object') {
+        throw new Error('transcribeResultCached is not an object')
+      }
+      if (Object.keys(transcribeResultCached).length == 0) {
+        throw new Error('transcribeResultCached is an empty object')
+      }
+    }
+    catch (exc) {
+      console.log(`error: failed to read cache ${transcribeResultCachePath} - ${exc} - moving file to ${transcribeResultCachePathTrash}`)
+      await fs.rename(transcribeResultCachePath, transcribeResultCachePathTrash)
+      return null
+    }
+    console.log(`reading cache ${transcribeResultCachePath}`)
+    return transcribeResultCached
+  }
+
+  async function writeTranscribeResultCache(tocItems, transcribeResultCachePath) {
+    // write cache
+    console.log(`writing cache ${transcribeResultCachePath}`)
+    await fs.writeFile(transcribeResultCachePath, JSON.stringify(tocItems), { encoding: 'utf8' })
+  }
+
   const content: ContentChunk[] = (
     await pMap(
       pageScreenshots,
@@ -39,6 +84,18 @@ async function main() {
           !Number.isNaN(index) && !Number.isNaN(page),
           `invalid screenshot filename: ${screenshot}`
         )
+
+        let result = null
+
+        const indexPageStr = screenshot.match(/(\d+-\d+).png/)[1]
+        const transcribeResultCachePath = path.join(outDir, 'text', `${indexPageStr}.json`)
+        await fs.mkdir(path.join(outDir, 'text'), { recursive: true })
+
+        result = await readTranscribeResultCache(transcribeResultCachePath)
+
+        if (result != null) {
+          return result
+        }
 
         try {
           const maxRetries = 20
@@ -103,6 +160,9 @@ Do not include any additional text, descriptions, or punctuation. Ignore any emb
               screenshot
             }
             console.log(result)
+
+            // write cache
+            await writeTranscribeResultCache(result, transcribeResultCachePath);
 
             return result
           } while (true)
