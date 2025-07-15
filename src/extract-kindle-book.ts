@@ -378,6 +378,8 @@ async function main() {
     `reading ${totalContentPages} pages${total > totalContentPages ? ` (of ${total} total pages stopping at "${parsedToc.afterLastPageTocItem!.title}")` : ''}...`
   )
 
+  // TODO find first missing screenshotPath and seek to that page
+
   while (true) {
     const pageNav = await getPageNav()
     if (pageNav?.page === undefined) {
@@ -395,13 +397,6 @@ async function main() {
       .getAttribute('src')
     console.log('getting image source of krRendererMainImageSelector done')
 
-    // FIXME this hangs after some pages
-    console.log('taking screenshot of krRendererMainImageSelector ...')
-    const b = await page
-      .locator(krRendererMainImageSelector)
-      .screenshot({ type: 'png', scale: 'css' })
-    console.log('taking screenshot of krRendererMainImageSelector done')
-
     const screenshotPath = path.join(
       pageScreenshotsDir,
       `${index}`.padStart(pagePadding, '0') +
@@ -409,7 +404,25 @@ async function main() {
         `${pageNav.page}`.padStart(pagePadding, '0') +
         '.png'
     )
+
+    if (await fileExists(screenshotPath)) {
+      console.log(`keeping ${screenshotPath}`)
+    }
+    else {
+      // TODO indent ...
+
+    // FIXME this hangs after some pages
+    console.log('taking screenshot of krRendererMainImageSelector ...')
+    const b = await page
+      .locator(krRendererMainImageSelector)
+      .screenshot({ type: 'png', scale: 'css' })
+    console.log('taking screenshot of krRendererMainImageSelector done')
+
     await fs.writeFile(screenshotPath, b)
+
+      // ... TODO indent
+    }
+
     pages.push({
       index,
       page: pageNav.page,
