@@ -193,15 +193,20 @@ async function main() {
     await delay(1000)
     await page.locator('#reader-header').hover({ force: true })
     await delay(200)
-    await page.locator('ion-button[title="Reader menu"]').click()
+    // <button type="button" class="button-native" part="native" aria-label="Reader menu">
+    await page.locator('button[aria-label="Reader menu"]').click()
     await delay(1000)
+    // <ion-item button="true" lines="none" detail="false" item-i-d="pop_over_menu_go_to_page" data-testid="pop_over_menu_go_to_page" class="popover-menu-item item ios item-lines-none item-fill-none in-list ion-activatable ion-focusable item-label" role="listitem">
     await page
-      .locator('ion-item[role="listitem"]', { hasText: 'Go to Page' })
+      .locator('ion-item[role="listitem"][item-i-d="pop_over_menu_go_to_page"]')
       .click()
+    // <ion-modal is-open="true" show-backdrop="false" animated="false" class="go-to-modal ios modal-default show-modal" id="ion-overlay-6" no-router="" tabindex="-1" style="z-index: 20015;">
+    // <input class="native-input sc-ion-input-ios" id="ion-input-0" autocapitalize="off" autocomplete="off" autocorrect="off" name="ion-input-0" pattern="[0-9]*" placeholder="page number" spellcheck="false" type="number">
     await page
       .locator('ion-modal input[placeholder="page number"]')
       .fill(`${pageNumber}`)
     // await page.locator('ion-modal button', { hasText: 'Go' }).click()
+    // <ion-button expand="full" color="dark" item-i-d="go-to-modal-go-button" class="go-to-modal-button-primary ion-color ion-color-dark ios button button-full button-solid ion-activatable ion-focusable">Go</ion-button>
     await page
       .locator('ion-modal ion-button[item-i-d="go-to-modal-go-button"]')
       .click()
