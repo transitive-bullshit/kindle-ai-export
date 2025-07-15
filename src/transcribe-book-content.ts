@@ -175,11 +175,13 @@ Do not include any additional text, descriptions, or punctuation. Ignore any emb
     )
   ).filter(Boolean)
 
+  console.log(`writing ${path.join(outDir, 'content.json')}`)
   await fs.writeFile(
     path.join(outDir, 'content.json'),
     JSON.stringify(content, null, 2)
   )
-  console.log(JSON.stringify(content, null, 2))
+  // no. this would overwrite terminal history
+  // console.log(JSON.stringify(content, null, 2))
 }
 
 await main()
