@@ -220,6 +220,11 @@ async function main() {
     }
   }
 
+  // wait for alert
+  // otherwise it hangs at updateSettings() -> Change font to Amazon Ember
+  // TODO better. wait for page load
+  await delay(5000)
+
   await dismissPossibleAlert()
   await ensureFixedHeaderUI()
   await updateSettings()
