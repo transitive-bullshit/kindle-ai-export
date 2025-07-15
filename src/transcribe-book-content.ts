@@ -171,7 +171,7 @@ Do not include any additional text, descriptions, or punctuation. Ignore any emb
           await delay(2000)
         }
       },
-      { concurrency: 16 }
+      { concurrency: 8 }
     )
   ).filter(Boolean)
 
