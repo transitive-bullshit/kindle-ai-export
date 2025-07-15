@@ -182,6 +182,12 @@ Do not include any additional text, descriptions, or punctuation. Ignore any emb
   )
   // no. this would overwrite terminal history
   // console.log(JSON.stringify(content, null, 2))
+
+  console.log(`hint: next steps:`)
+  console.log(`  npx tsx src/export-book-pdf.ts`)
+  console.log(`  ebook-convert out/${asin}/book.pdf out/${asin}/book.epub --enable-heuristics`)
+  console.log(`  npx tsx src/export-book-markdown.ts`)
+  console.log(`  npx tsx src/export-book-audio.ts`)
 }
 
 await main()
