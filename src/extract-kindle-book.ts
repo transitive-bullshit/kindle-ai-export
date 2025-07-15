@@ -231,7 +231,7 @@ async function main() {
 
   const initialPageNav = await getPageNav()
 
-  await page.locator('ion-button[title="Table of Contents"]').click()
+  await page.locator('button[aria-label="Table of Contents"]').click()
   await delay(1000)
 
   const $tocItems = await page.locator('ion-list ion-item').all()
