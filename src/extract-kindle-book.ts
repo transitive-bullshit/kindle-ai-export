@@ -214,7 +214,7 @@ async function main() {
   // div#alert-7-msg + div.alert-button-group button.secondary
 
   async function dismissPossibleAlert() {
-    const $alertNo = page.locator('ion-alert button', { hasText: 'No' })
+    const $alertNo = page.locator('div.alert-wrapper button.secondary', { hasText: 'No' })
     if (await $alertNo.isVisible()) {
       $alertNo.click()
     }
