@@ -522,11 +522,13 @@ async function main() {
   }
 
   const result: BookMetadata = { info: info!, meta: meta!, toc, pages }
+  console.log(`writing ${path.join(outDir, 'metadata.json')}`)
   await fs.writeFile(
     path.join(outDir, 'metadata.json'),
     JSON.stringify(result, null, 2)
   )
-  console.log(JSON.stringify(result, null, 2))
+  // no. this would overwrite terminal history
+  // console.log(JSON.stringify(result, null, 2))
 
   if (initialPageNav?.page !== undefined) {
     console.warn(`resetting back to initial page ${initialPageNav.page}...`)
