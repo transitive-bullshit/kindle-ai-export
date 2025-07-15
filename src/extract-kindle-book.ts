@@ -351,7 +351,7 @@ async function main() {
     }
   }
     // ... TODO indent
-    await writeTocItemsCache()
+    await writeTocItemsCache(tocItems, tocItemsCachePath)
   }
 
   const parsedToc = parseTocItems(tocItems)
