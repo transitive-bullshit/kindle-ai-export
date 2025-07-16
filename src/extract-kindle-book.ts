@@ -253,7 +253,9 @@ async function main() {
   // await page.locator('[id="top-sign-in-btn"]').click()
   // await page.waitForURL('**/signin')
 
-  async function updateSettings() {
+  async function updateSettings(settings = {}) {
+    if (!settings) settings = {}
+    if (!settings.pageColor) settings.pageColor = 'white'
     const selectorReaderSettings = 'button[aria-label="Reader settings"]'
     // <button type="button" class="button-native" part="native" aria-label="Reader settings">
     console.log('opening Reader settings ...')
@@ -267,6 +269,20 @@ async function main() {
     await page.locator('#AmazonEmber').click()
     console.log('setting font done')
     await delay(1000)
+
+    // set page color
+    const selectorByPageColor = {
+      white: '#theme-White',
+      black: '#theme-Dark',
+      sepia: '#theme-Sepia',
+      green: '#theme-Green',
+    }
+    if (selectorByPageColor[settings.pageColor]) {
+      console.log(`setting page color ${settings.pageColor} ...`)
+      await page.locator(selectorByPageColor[settings.pageColor]).click()
+      console.log(`setting page color ${settings.pageColor} done`)
+      await delay(1000)
+    }
 
     // Change layout to single column
     console.log('setting single column layout ...')
@@ -470,10 +486,21 @@ async function main() {
   await page.locator('.side-menu-close-button').click()
   await delay(1000)
 
+  const pagesByPageColor = {}
+
+  for (const pageColor of ['white', 'black']) {
+    console.log(`extracting screenshots of ${pageColor} pages ...`)
+    await updateSettings({ pageColor: pageColor })
+    await goToPage(1)
+    await fs.mkdir(path.join(pageScreenshotsDir, pageColor), { recursive: true })
+    // TODO indent ...
+
   const pages: Array<PageChunk> = []
   console.warn(
     `reading ${totalContentPages} pages${total > totalContentPages ? ` (of ${total} total pages stopping at "${parsedToc.afterLastPageTocItem!.title}")` : ''}...`
   )
+
+  pagesByPageColor[pageColor] = pages
 
   // TODO find first missing screenshotPath and seek to that page
 
@@ -497,6 +524,7 @@ async function main() {
 
     const screenshotPath = path.join(
       pageScreenshotsDir,
+      pageColor,
       `${index}`.padStart(pagePadding, '0') +
         '-' +
         `${pageNav.page}`.padStart(pagePadding, '0') +
@@ -601,7 +629,13 @@ async function main() {
     }
   }
 
-  const result: BookMetadata = { info: info!, meta: meta!, toc, pages }
+    // ... TODO indent
+    console.log(`extracting screenshots of ${pageColor} pages done`)
+  } // for (const pageColor of ['white', 'black'])
+
+  const pages = pagesByPageColor['white']
+
+  const result: BookMetadata = { info: info!, meta: meta!, toc, pages, pagesByPageColor }
   console.log(`writing ${path.join(outDir, 'metadata.json')}`)
   await fs.writeFile(
     path.join(outDir, 'metadata.json'),
