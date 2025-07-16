@@ -504,6 +504,16 @@ async function main() {
 
   // TODO find first missing screenshotPath and seek to that page
 
+  // create sparse array of subpages
+  // so later we can insert missing subpages
+  const subPageBase = 100
+
+  const subPagePadding = 5 // max subPage: 99999
+
+  let lastPage = 0
+
+  let subPage = subPageBase
+
   while (true) {
     const pageNav = await getPageNav()
     if (pageNav?.page === undefined) {
@@ -522,13 +532,24 @@ async function main() {
       .getAttribute('src')
     console.log('getting image source of krRendererMainImageSelector done')
 
+    // TODO assert(pageNav.page >= lastPage)
+
+    if (pageNav.page > lastPage) {
+      subPage = subPageBase
+    }
+    else {
+      subPage += subPageBase
+    }
+
     const screenshotPath = path.join(
       pageScreenshotsDir,
       pageColor,
-      `${index}`.padStart(pagePadding, '0') +
-        '-' +
+      (
         `${pageNav.page}`.padStart(pagePadding, '0') +
+        '-' +
+        `${subPage}`.padStart(subPagePadding, '0') +
         '.png'
+      )
     )
 
     if (await fileExists(screenshotPath)) {
@@ -627,6 +648,7 @@ async function main() {
 
       ++retries
     }
+    lastPage = pageNav.page
   }
 
     // ... TODO indent
