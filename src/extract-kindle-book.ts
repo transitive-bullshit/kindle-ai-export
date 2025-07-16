@@ -541,16 +541,20 @@ async function main() {
       subPage += subPageBase
     }
 
-    const screenshotPath = path.join(
-      pageScreenshotsDir,
-      pageColor,
-      (
-        `${pageNav.page}`.padStart(pagePadding, '0') +
-        '-' +
-        `${subPage}`.padStart(subPagePadding, '0') +
-        '.png'
+    function getScreenshotPath(page, subPage) {
+      return path.join(
+        pageScreenshotsDir,
+        pageColor,
+        (
+          `${page}`.padStart(pagePadding, '0') +
+          '-' +
+          `${subPage}`.padStart(subPagePadding, '0') +
+          '.png'
+        )
       )
-    )
+    }
+
+    const screenshotPath = getScreenshotPath(pageNav.page, subPage)
 
     if (await fileExists(screenshotPath)) {
       console.log(`keeping ${screenshotPath}`)
