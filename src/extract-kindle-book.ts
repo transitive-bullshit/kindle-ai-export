@@ -556,9 +556,23 @@ async function main() {
           }
 
           // Click the next page button
+          console.log('clicking next page button')
+          try {
+            // TODO indent ...
           await page
             .locator('.kr-chevron-container-right')
             .click({ timeout: 1000 })
+            // ... TODO indent
+          }
+          catch (exc) {
+            console.log(`clicking next page button failed: ${exc}`)
+            // fallback on Timeout: waiting for locator('.kr-chevron-container-right')
+            // this seems to be a bug in the kindle reader
+            // when seeking from the last page to the first page
+            // then there is no "next page" button, only a "previous page" button
+            console.log(`seeking to next page with goToPage(${pageNav.page + 1})`)
+            await goToPage(pageNav.page + 1)
+          }
         }
         // await delay(500)
       } catch (err: any) {
