@@ -7,6 +7,8 @@ import { input } from '@inquirer/prompts'
 import delay from 'delay'
 import { chromium, type Locator } from 'playwright'
 import which from 'which'
+import looksSame from 'looks-same'
+import fastGlob from 'fast-glob'
 
 import type { BookInfo, BookMeta, BookMetadata, PageChunk } from './types'
 import {
@@ -554,13 +556,37 @@ async function main() {
       )
     }
 
-    const screenshotPath = getScreenshotPath(pageNav.page, subPage)
+    function getScreenshotPathPattern(page) {
+      return path.join(
+        pageScreenshotsDir,
+        pageColor,
+        (
+          `${page}`.padStart(pagePadding, '0') +
+          '-' +
+          '*' +
+          '.png'
+        )
+      )
+    }
 
+    let screenshotPath
+    while (true) {
+      screenshotPath = getScreenshotPath(pageNav.page, subPage)
+      if (!(await fileExists(screenshotPath))) {
+        break
+      }
+      // file exists -> change path
+      subPage++
+    }
+
+
+    /*
     if (await fileExists(screenshotPath)) {
       console.log(`keeping ${screenshotPath}`)
     }
     else {
       // TODO indent ...
+    */
 
     // FIXME this hangs after some pages
     console.log('taking screenshot of krRendererMainImageSelector ...')
@@ -569,10 +595,30 @@ async function main() {
       .screenshot({ type: 'png', scale: 'css' })
     console.log('taking screenshot of krRendererMainImageSelector done')
 
+    // loop screenshot files of this page to find duplicate images
+    let foundDuplicate = false
+    const pathPattern = getScreenshotPathPattern(pageNav.page)
+    for (const path of await fastGlob.glob(pathPattern)) {
+      const {equal} = await looksSame(b, path, {tolerance: 5})
+      if (!equal) continue
+      foundDuplicate = true
+      // screenshotPath = `${path}.dup.${Date.now()}.png`
+      screenshotPath = path
+      break
+    }
+
+    if (foundDuplicate) {
+      console.log(`got duplicate of screenshot ${screenshotPath}`)
+    }
+    else {
+      // TODO indent ...
+
     await fs.writeFile(screenshotPath, b)
 
+    /*
       // ... TODO indent
     }
+    */
 
     pages.push({
       index,
@@ -582,6 +628,9 @@ async function main() {
     })
 
     console.warn(pages.at(-1))
+
+      // ... TODO indent
+    } // if (!foundDuplicate)
 
     // Navigation is very spotty without this delay; I think it may be due to
     // the screenshot changing the DOM temporarily and not being stable yet.
