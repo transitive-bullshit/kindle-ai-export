@@ -197,7 +197,11 @@ async function main() {
     // wait for signin
     while (true) {
       const u = page.url()
-      if (u == 'https://www.amazon.com/ap/signin') {
+      if (
+        u == 'https://www.amazon.com/ap/signin' ||
+        // captcha: Solve this puzzle to protect your account
+        u.startsWith('https://www.amazon.com/ap/cvf/request?')
+      ) {
         console.log(`signin loading: url = ${u}`);
         await delay(1000)
         continue
