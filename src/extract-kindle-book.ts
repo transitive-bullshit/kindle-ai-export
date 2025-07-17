@@ -256,8 +256,16 @@ async function main() {
   // await page.waitForURL('**/signin')
 
   async function updateSettings(settings = {}) {
+    const defaultFontSize = 5
     if (!settings) settings = {}
     if (!settings.pageColor) settings.pageColor = 'white'
+    if (!settings.fontSize) settings.fontSize = defaultFontSize
+    if (settings.fontSize < 0 || 13 < settings.fontSize) {
+      console.log(`error: invalid fontSize ${settings.fontSize} - using default fontSize ${defaultFontSize}`)
+      settings.fontSize = defaultFontSize
+    }
+    settings.fontSize = Math.round(settings.fontSize) // force integer value
+
     const selectorReaderSettings = 'button[aria-label="Reader settings"]'
     // <button type="button" class="button-native" part="native" aria-label="Reader settings">
     console.log('opening Reader settings ...')
@@ -270,6 +278,18 @@ async function main() {
     console.log('setting font ...')
     await page.locator('#AmazonEmber').click()
     console.log('setting font done')
+    await delay(1000)
+
+    // set font size
+    // <ion-range value="6" min="0" max="13" step="1" snaps="true" item-i-d="font_size_range" debounce="200" class="font-size-slider ios range-label-placement-start" id="ion-r-1" aria-label="Choose your preferred font size"><span class="font-size-slider__label font-size-slider__label--start" slot="start" role="button" tabindex="0" aria-label="Decrease font size">A</span><span class="font-size-slider__label font-size-slider__label--end" slot="end" role="button" tabindex="0" aria-label="Increase font size">A</span><input type="hidden" class="aux-input" name="ion-r-1" value="6"></ion-range>
+    // document.querySelector('ion-range[item-i-d="font_size_range"]').shadowRoot.querySelector('div.range-tick')
+    console.log(`setting font size ${settings.fontSize} ...`)
+    // await page.dragAndDrop( // not working
+    await dragAndDrop(page,
+      'ion-range[item-i-d="font_size_range"] div.range-knob-handle',
+      `ion-range[item-i-d="font_size_range"] div.range-tick${' + div.range-tick'.repeat(settings.fontSize)}`,
+    )
+    console.log(`setting font size ${settings.fontSize} done`)
     await delay(1000)
 
     // set page color
@@ -817,6 +837,34 @@ function parseTocItems(tocItems: TocItem[]) {
     firstPageTocItem,
     afterLastPageTocItem
   }
+}
+
+// https://stackoverflow.com/a/78208183/10440128
+async function dragAndDrop(
+  page: Page,
+  originSelector: string,
+  destinationSelector: string
+) {
+  const originElement = await page.waitForSelector(originSelector);
+  const destinationElement = await page.waitForSelector(destinationSelector);
+
+  const originElementBox = await originElement.boundingBox();
+  const destinationElementBox = await destinationElement.boundingBox();
+  if (!originElementBox || !destinationElementBox) {
+    return;
+  }
+  await page.mouse.move(
+    originElementBox.x + originElementBox.width / 2,
+    originElementBox.y + originElementBox.height / 2
+  );
+  await page.mouse.down();
+  // I added more steps to see a smoother animation.
+  await page.mouse.move(
+    destinationElementBox.x + destinationElementBox.width / 2,
+    destinationElementBox.y + destinationElementBox.height / 2,
+    { steps: 20 }
+  );
+  await page.mouse.up();
 }
 
 await main()
