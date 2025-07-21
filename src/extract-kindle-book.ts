@@ -85,7 +85,17 @@ async function main() {
     args: ['--hide-crash-restore-bubble'],
     ignoreDefaultArgs: ['--enable-automation'],
     deviceScaleFactor: 2,
-    viewport: { width: 1280, height: 720 }
+    viewport: { width: 1280, height: 720 },
+    // https://playwright.dev/docs/api/class-browsertype#browser-type-launch-persistent-context-option-record-har
+    recordHar: {
+      path: path.join(outDir, 'requests.har'),
+      mode: 'full',
+      // no. this throws "RangeError: Invalid string length" in context.close
+      // https://github.com/microsoft/playwright/issues/36707
+      // content: 'embed',
+      content: 'attach',
+      // urlFilter: '**amazon.com/**'
+    },
   })
   const page = await context.newPage()
 
