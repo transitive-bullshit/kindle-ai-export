@@ -199,6 +199,11 @@ async function main() {
   ])
 
   if (/\/ap\/signin/g.test(new URL(page.url()).pathname)) {
+    // retry signin loop
+    while (true) {
+      let retrySignin = false
+      // TODO indent ...
+
     await page.locator('input[type="email"]').fill(amazonEmail)
     await page.locator('input[type="submit"]').click()
 
@@ -210,6 +215,15 @@ async function main() {
     while (true) {
       const u = page.url()
       if (
+        // signin failed
+        // https://www.amazon.com/ap/signin?arb=xxx&claimToken=xxx
+        u.startsWith('https://www.amazon.com/ap/signin?')
+      ) {
+        console.log(`signin failed: url = ${u} -> retrying signin`);
+        retrySignin = true
+        break
+      }
+      if (
         u == 'https://www.amazon.com/ap/signin' ||
         // captcha: Solve this puzzle to protect your account
         u.startsWith('https://www.amazon.com/ap/cvf/request?')
@@ -220,6 +234,10 @@ async function main() {
       }
       console.log(`signin done: url = ${u}`);
       break
+    }
+
+    if (retrySignin) {
+      continue
     }
 
     const pageUrl = new URL(page.url())
@@ -258,6 +276,11 @@ async function main() {
 
       // page.waitForURL('**/kindle-library', { timeout: 30_000 })
       // await page.locator(`#title-${asin}`).click()
+    }
+
+      // ... TODO indent
+      // done login -> stop retry signin loop
+      break
     }
   }
 
