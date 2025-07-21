@@ -732,6 +732,12 @@ async function main() {
               retries,
               ...pages.at(-1)
             })
+            console.log(`FIXME dont retry click on next page button`)
+            // make sure we are on this page before clicking the next page button
+            // otherwise clicking the next page button can skip pages
+            console.log(`before clicking next page button, seeking to page ${page}`)
+            await goToPage(pageNum)
+            // await delay(99999999)
           }
 
           // Click the next page button
