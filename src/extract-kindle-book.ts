@@ -569,6 +569,9 @@ async function main() {
 
   let subPage = subPageBase
 
+  const imageIdRegex = /^blob:https:\/\/read.amazon.com\/([0-9a-f-]{36})$/
+  const pageByImageId = {}
+
   while (true) {
     const pageNav = await getPageNav()
     if (pageNav?.page === undefined) {
@@ -587,6 +590,21 @@ async function main() {
       .getAttribute('src')
     console.log('getting image source of krRendererMainImageSelector done')
 
+    // extract image id
+    const imageIdMatch = imageIdRegex.exec(src)
+    if (!imageIdMatch) {
+      console.log(`FIXME not found imageIdMatch in src ${src}`)
+      await delay(99999)
+    }
+    const imageId = imageIdMatch[1]
+    console.log(`found imageId ${imageId}`)
+    let pageOfDuplicateImageId = null
+    if (imageId in pageByImageId) {
+      console.log(`FIXME found duplicate imageId ${imageId}`)
+      pageOfDuplicateImageId = pageByImageId[imageId]
+    }
+    pageByImageId[imageId] = pageNum
+
     // TODO assert(pageNav.page >= lastPage)
 
     if (pageNav.page > lastPage) {
@@ -596,7 +614,7 @@ async function main() {
       subPage += subPageBase
     }
 
-    function getScreenshotPath(page, subPage) {
+    function getScreenshotPath(page, subPage, imageId) {
       return path.join(
         pageScreenshotsDir,
         pageColor,
@@ -604,6 +622,7 @@ async function main() {
           `${page}`.padStart(pagePadding, '0') +
           '-' +
           `${subPage}`.padStart(subPagePadding, '0') +
+          `-${imageId}` +
           '.png'
         )
       )
@@ -624,7 +643,7 @@ async function main() {
 
     let screenshotPath
     while (true) {
-      screenshotPath = getScreenshotPath(pageNav.page, subPage)
+      screenshotPath = getScreenshotPath(pageNav.page, subPage, imageId)
       if (!(await fileExists(screenshotPath))) {
         break
       }
@@ -667,6 +686,11 @@ async function main() {
       // TODO indent ...
 
     await fs.writeFile(screenshotPath, b)
+
+    if (pageOfDuplicateImageId != null) {
+      console.log(`FIXME found duplicate imageId ${imageId} - previous page ${pageOfDuplicateImageId}`)
+      await delay(99999)
+    }
 
     /*
       // ... TODO indent
@@ -742,7 +766,21 @@ async function main() {
       const newSrc = await page
         .locator(krRendererMainImageSelector)
         .getAttribute('src')
-      if (newSrc !== src) {
+
+      console.log('clicked next page button...', { src, newSrc }) // debug
+
+      const src2 = newSrc
+      const imageIdMatch2 = imageIdRegex.exec(src2)
+      if (!imageIdMatch2) {
+        console.log(`FIXME not found imageIdMatch2 in src2 ${src2}`)
+        await delay(99999)
+      }
+      const imageId2 = imageIdMatch2[1]
+      console.log(`found imageId2 ${imageId2}`)
+
+      // if (newSrc !== src) {
+      // this assumes that all images are unique = there are no duplicate images
+      if (!(imageId2 in pageByImageId)) {
         break
       }
 
