@@ -36,6 +36,7 @@ async function main() {
       Author: authors.join(', ')
     }
   })
+  console.log(`writing ${path.join(outDir, 'book.pdf')}`)
   const stream = doc.pipe(fs.createWriteStream(path.join(outDir, 'book.pdf')))
 
   const fontSize = 12
