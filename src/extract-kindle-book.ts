@@ -661,11 +661,28 @@ async function main() {
     */
 
     // FIXME this hangs after some pages
-    console.log('taking screenshot of krRendererMainImageSelector ...')
-    const b = await page
-      .locator(krRendererMainImageSelector)
-      .screenshot({ type: 'png', scale: 'css' })
-    console.log('taking screenshot of krRendererMainImageSelector done')
+    console.log('getting screenshot image ...')
+    // no. this creates small and blurry images
+    // https://github.com/transitive-bullshit/kindle-ai-export/issues/13
+    // const b = await page
+    //   .locator(krRendererMainImageSelector)
+    //   .screenshot({ type: 'png', scale: 'css' })
+    // https://stackoverflow.com/a/62575556/10440128
+    // https://playwright.dev/docs/evaluating
+    const base64String = await page.evaluate(async ({ krRendererMainImageSelector }) => {
+      const canvas = document.createElement('canvas')
+      const context = canvas.getContext('2d')
+      const img = document.querySelector(krRendererMainImageSelector)
+      canvas.height = img.naturalHeight
+      canvas.width = img.naturalWidth
+      context.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight)
+      const dataUrl = canvas.toDataURL()
+      // remove "data:image/pngbase64,"
+      const base64String = dataUrl.slice(dataUrl.indexOf(",") + 1)
+      return base64String
+    }, { krRendererMainImageSelector })
+    const b = Buffer.from(base64String, 'base64')
+    console.log('getting screenshot image done')
 
     // loop screenshot files of this page to find duplicate images
     let foundDuplicate = false
