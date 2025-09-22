@@ -387,24 +387,196 @@ async function main() {
   }
 
   async function goToPage(pageNumber: number) {
+    // Dismiss any overlays first
     await page.keyboard.press('Escape').catch(() => {});
     await delay(100);
-    await delay(1000)
-    await page.locator('#reader-header').hover({ force: true })
-    await delay(200)
-    await page.locator('ion-button[title="Reader menu"]').click()
-    await delay(1000)
-    await page
-      .locator('ion-item[role="listitem"]', { hasText: 'Go to Page' })
-      .click()
-    await page
-      .locator('ion-modal input[placeholder="page number"]')
-      .fill(`${pageNumber}`)
-    // await page.locator('ion-modal button', { hasText: 'Go' }).click()
-    await page
-      .locator('ion-modal ion-button[item-i-d="go-to-modal-go-button"]')
-      .click()
-    await delay(1000)
+
+    // If we are already on the requested page, short-circuit
+    let current = await getPageNav().catch(() => undefined as any);
+    if (current?.page === pageNumber) {
+      return;
+    }
+
+    // Clamp target page within [1, total]
+    if (current?.total) {
+      pageNumber = Math.min(Math.max(1, pageNumber), current.total);
+      if (current.page === pageNumber) {
+        return;
+      }
+    }
+
+    // Some Kindle layouts render the reader inside an iframe; prefer that if present
+    const readerFrame = page.frame({ url: /read\.amazon\./ }) || page.mainFrame();
+    const scope = readerFrame as unknown as Page; // Page & Frame share locator API used below
+
+    // Make toolbar visible (it auto-hides)
+    const makeToolbarVisible = async () => {
+      await scope.waitForLoadState?.('domcontentloaded').catch(() => {});
+      await page.locator('#reader-header, .top-chrome, ion-toolbar').first().hover({ force: true }).catch(() => {});
+      await delay(150);
+      await page.mouse.move(60, 60).catch(() => {});
+      await delay(150);
+    };
+
+    await makeToolbarVisible();
+
+    // Open the Reader menu (hamburger/kebab). Try multiple candidates with retries.
+    const menuCandidates: Locator[] = [
+      scope.locator?.('ion-button[title="Reader menu"]'),
+      scope.locator?.('button[title="Reader menu"]'),
+      scope.getByRole?.('button', { name: /reader menu|menu|more/i } as any),
+      // Some builds expose a generic kebab/hamburger without title
+      scope.locator?.('[aria-label="Menu"], [data-testid="reader-menu"], ion-button:has(ion-icon[name="menu"])'),
+    ].filter(Boolean) as Locator[];
+
+    let menuOpened = false;
+    const openDeadline = Date.now() + 10_000;
+    while (!menuOpened && Date.now() < openDeadline) {
+      for (const cand of menuCandidates) {
+        if (await cand.isVisible().catch(() => false)) {
+          await cand.click({ timeout: 1_000 }).catch(() => {});
+          // Wait for the menu list to show up
+          const menuList = scope.locator?.('ion-list, [role="menu"], .menu-content');
+          await menuList?.first().waitFor({ state: 'visible', timeout: 1_000 }).catch(() => {});
+          // Heuristic: if "Go to Page" is visible, we consider the menu opened
+          const gotoItem = scope.locator?.('ion-item[role="listitem"]:has-text("Go to Page"), [role="menuitem"]:has-text("Go to Page")');
+          if (gotoItem && await gotoItem.first().isVisible().catch(() => false)) {
+            menuOpened = true;
+            break;
+          }
+        }
+      }
+      if (!menuOpened) {
+        await makeToolbarVisible();
+      }
+    }
+
+    if (!menuOpened) {
+      await page.screenshot({ path: 'goto-open-menu-timeout.png', fullPage: true }).catch(() => {});
+      throw new Error('Could not open Reader menu to navigate to a page. Saved screenshot: goto-open-menu-timeout.png');
+    }
+
+    // Click "Go to Page"
+    const gotoItem = scope.locator?.('ion-item[role="listitem"]:has-text("Go to Page"), [role="menuitem"]:has-text("Go to Page")');
+    if (!gotoItem || !await gotoItem.first().isVisible().catch(() => false)) {
+      await page.screenshot({ path: 'goto-item-missing.png', fullPage: true }).catch(() => {});
+      throw new Error('"Go to Page" menu item not found. Saved screenshot: goto-item-missing.png');
+    }
+    await gotoItem.first().click({ timeout: 2_000 }).catch(() => {});
+
+    // Wait for the modal and fill the page number
+    const modal = scope.locator?.('ion-modal, [role="dialog"]');
+    await modal?.first().waitFor({ state: 'visible', timeout: 3_000 }).catch(() => {});
+
+    const inputBox = scope.locator?.('ion-modal input[placeholder="page number"], ion-modal input[type="text"], [role="dialog"] input');
+    if (!inputBox) {
+      await page.screenshot({ path: 'goto-input-missing.png', fullPage: true }).catch(() => {});
+      throw new Error('Go to Page input not found. Saved screenshot: goto-input-missing.png');
+    }
+    await inputBox.first().fill(String(pageNumber), { timeout: 2_000 }).catch(() => {});
+
+    // Click Go / submit or press Enter
+    const goBtn = scope.locator?.('ion-modal ion-button[item-i-d="go-to-modal-go-button"], ion-modal button:has-text("Go")');
+    if (goBtn && await goBtn.first().isVisible().catch(() => false)) {
+      await goBtn.first().click({ timeout: 2_000 }).catch(() => {});
+    } else {
+      await inputBox.first().press('Enter').catch(() => {});
+    }
+
+    // Wait until the footer reflects the requested page or we time out
+    const waitDeadline = Date.now() + 12_000;
+    let nav = undefined as any;
+    while (Date.now() < waitDeadline) {
+      nav = await getPageNav().catch(() => undefined as any);
+      if (nav?.page === pageNumber) break;
+      await delay(150);
+    }
+
+    // Fallback: if footer didn't update to the requested page, walk via chevrons
+    if (!nav || nav.page !== pageNumber) {
+      // Determine direction and walk with safety limits
+      const maxSteps = 1200; // generous upper bound for big books
+      let steps = 0;
+      let lastSrc = await page.locator(krRendererMainImageSelector).getAttribute('src').catch(() => undefined);
+
+      const clickChevron = async (dir: 'left' | 'right') => {
+        const selector = dir === 'left' ? '.kr-chevron-container-left' : '.kr-chevron-container-right';
+        await page.locator(selector).click({ timeout: 1_000 }).catch(() => {});
+      };
+
+      // Re-sample current page
+      nav = await getPageNav().catch(() => undefined as any);
+
+      while (nav?.page !== undefined && nav.page !== pageNumber && steps < maxSteps) {
+        const dir = nav.page > pageNumber ? 'left' : 'right';
+        await clickChevron(dir);
+        // Wait for image to change or page number to update
+        const startWait = Date.now();
+        while (Date.now() - startWait < 1200) {
+          const srcNow = await page.locator(krRendererMainImageSelector).getAttribute('src').catch(() => lastSrc);
+          if (srcNow && srcNow !== lastSrc) { lastSrc = srcNow; break; }
+          await delay(100);
+        }
+        await delay(100);
+        nav = await getPageNav().catch(() => nav);
+        steps++;
+      }
+
+      // If still not at target, try opening the menu again once (best-effort)
+      if (nav?.page !== pageNumber) {
+        // Try pressing Escape (dismiss any lingering modal), then retry the direct method once more
+        await page.keyboard.press('Escape').catch(() => {});
+        await delay(150);
+
+        // Re-attempt the Go To flow quickly
+        const readerFrame2 = page.frame({ url: /read\.amazon\./ }) || page.mainFrame();
+        const scope2 = readerFrame2 as unknown as Page;
+        const reOpenMenu = [
+          scope2.locator?.('ion-button[title="Reader menu"]'),
+          scope2.locator?.('button[title="Reader menu"]'),
+          scope2.getByRole?.('button', { name: /reader menu|menu|more/i } as any),
+          scope2.locator?.('[aria-label="Menu"], [data-testid="reader-menu"], ion-button:has(ion-icon[name="menu"])'),
+        ].filter(Boolean) as Locator[];
+        for (const c of reOpenMenu) {
+          if (await c.isVisible().catch(() => false)) { await c.click({ timeout: 1_000 }).catch(() => {}); break; }
+        }
+        const gotoItem2 = scope2.locator?.('ion-item[role="listitem"]:has-text("Go to Page"), [role="menuitem"]:has-text("Go to Page")');
+        if (gotoItem2 && await gotoItem2.first().isVisible().catch(() => false)) {
+          await gotoItem2.first().click({ timeout: 1_000 }).catch(() => {});
+          const modal2 = scope2.locator?.('ion-modal, [role="dialog"]');
+          await modal2?.first().waitFor({ state: 'visible', timeout: 2_000 }).catch(() => {});
+          const input2 = scope2.locator?.('ion-modal input[placeholder="page number"], [role="dialog"] input');
+          if (input2) {
+            await input2.first().fill(String(pageNumber)).catch(() => {});
+            const goBtn2 = scope2.locator?.('ion-modal ion-button[item-i-d="go-to-modal-go-button"], ion-modal button:has-text("Go")');
+            if (goBtn2 && await goBtn2.first().isVisible().catch(() => false)) {
+              await goBtn2.first().click({ timeout: 1_000 }).catch(() => {});
+            } else {
+              await input2.first().press('Enter').catch(() => {});
+            }
+          }
+        }
+
+        // Final wait for footer state
+        const finalWaitDeadline = Date.now() + 6_000;
+        while (Date.now() < finalWaitDeadline) {
+          nav = await getPageNav().catch(() => nav);
+          if (nav?.page === pageNumber) break;
+          await delay(150);
+        }
+      }
+
+      if (nav?.page !== pageNumber) {
+        await page.screenshot({ path: 'goto-fallback-failed.png', fullPage: true }).catch(() => {});
+        throw new Error(`Failed to navigate to page ${pageNumber}. Saved screenshot: goto-fallback-failed.png (last seen page ${nav?.page ?? 'unknown'})`);
+      }
+    }
+
+    // Close modal if it somehow remains
+    if (modal && await modal.first().isVisible().catch(() => false)) {
+      await page.keyboard.press('Escape').catch(() => {});
+      await delay(100);
+    }
   }
 
   async function getPageNav() {
@@ -499,7 +671,7 @@ async function main() {
     if (pageNav?.page === undefined) {
       break
     }
-    if (pageNav.page >= totalContentPages) {
+    if (pageNav.page > totalContentPages) {
       break
     }
 
@@ -596,9 +768,13 @@ async function main() {
   console.log(JSON.stringify(result, null, 2))
 
   if (initialPageNav?.page !== undefined) {
-    console.warn(`resetting back to initial page ${initialPageNav.page}...`)
-    // Reset back to the initial page
-    await goToPage(initialPageNav.page)
+    const endedOn = pages.at(-1)?.page;
+    if (endedOn === initialPageNav.page) {
+      console.warn(`already on initial page ${initialPageNav.page}; skipping reset`);
+    } else {
+      console.warn(`resetting back to initial page ${initialPageNav.page}...`);
+      await goToPage(initialPageNav.page);
+    }
   }
 
   await page.close()
