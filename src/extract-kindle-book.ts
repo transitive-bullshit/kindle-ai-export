@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { input } from '@inquirer/prompts'
 import delay from 'delay'
-import { chromium, type Locator } from 'playwright'
+import { chromium, type Locator, type Page } from 'playwright'
 
 import type { BookInfo, BookMeta, BookMetadata, PageChunk } from './types'
 import {
@@ -25,6 +25,62 @@ interface PageNav {
 interface TocItem extends PageNav {
   title: string
   locator?: Locator
+}
+
+async function completeOtpFlow(page: Page, code: string) {
+  // Wait for any known OTP input to appear (Amazon uses several variants)
+  const otpInput = page.locator('input#cvf-input-code, input[name="code"], input[type="tel"]');
+  await otpInput.waitFor({ state: 'visible', timeout: 120_000 });
+
+  await otpInput.fill(code);
+
+  // Try the common submit buttons first, then fall back to pressing Enter
+  const submitCandidates = [
+    'input#cvf-submit-otp-button',
+    'input[type="submit"][aria-labelledby="cvf-submit-otp-button-announce"]',
+    'button[name="verifyCode"]',
+  ];
+
+  let clicked = false;
+  for (const sel of submitCandidates) {
+    const btn = page.locator(sel);
+    if (await btn.isVisible()) {
+      await btn.click();
+      clicked = true;
+      break;
+    }
+  }
+
+  if (!clicked) {
+    const byRole = page.getByRole('button', { name: /verify|submit|continue/i });
+    if (await byRole.isVisible()) {
+      await byRole.click();
+      clicked = true;
+    }
+  }
+
+  if (!clicked) {
+    await otpInput.press('Enter');
+  }
+
+  // Some accounts show a "remember this device" step; handle it if present
+  const rememberCheckbox = page.locator('input[name="rememberDevice"], input#auth-mfa-remember-device');
+  if (await rememberCheckbox.isVisible()) {
+    await rememberCheckbox.check().catch(() => {});
+    const rememberSubmit = page.locator('input#cvf-submit-remember-device, input[type="submit"][aria-labelledby="cvf-submit-remember-device-announce"]');
+    if (await rememberSubmit.isVisible()) {
+      await rememberSubmit.click();
+    } else {
+      await page.getByRole('button', { name: /continue|submit/i }).click().catch(() => {});
+    }
+  }
+
+  // Wait for navigation away from the CVF (challenge) page
+  await Promise.race([
+    page.waitForURL(/read\.amazon\.[^/]+\//, { timeout: 60_000 }).catch(() => {}),
+    page.waitForURL(/kindle-library/, { timeout: 60_000 }).catch(() => {}),
+    page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {}),
+  ]);
 }
 
 async function main() {
@@ -104,16 +160,18 @@ async function main() {
     if (!/\/kindle-library/g.test(new URL(page.url()).pathname)) {
       const code = await input({
         message: '2-factor auth code?'
-      })
+      });
 
-      // Only enter 2-factor auth code if needed
       if (code) {
-        await page.locator('input[type="tel"]').fill(code)
-        await page
-          .locator(
-            'input[type="submit"][aria-labelledby="cvf-submit-otp-button-announce"]'
-          )
-          .click()
+        try {
+          await completeOtpFlow(page, code);
+        } catch (err) {
+          // As a fallback, try clicking the known OTP submit directly (legacy selector)
+          await page
+            .locator('input[type="submit"][aria-labelledby="cvf-submit-otp-button-announce"]')
+            .click({ timeout: 5_000 })
+            .catch(() => {});
+        }
       }
     }
 
@@ -129,22 +187,89 @@ async function main() {
   // await page.locator('[id="top-sign-in-btn"]').click()
   // await page.waitForURL('**/signin')
 
+  // Note: Playwright's Frame and Page share the `locator` and `getByRole` APIs used here.
   async function updateSettings() {
-    await page.locator('ion-button[title="Reader settings"]').click()
-    await delay(1000)
+    // Some Kindle flows render the reader inside an iframe; prefer that if present
+    const readerFrame = page.frame({ url: /read\.amazon\./ }) || page.mainFrame();
+    const scope = readerFrame as unknown as Page; // Page & Frame share locator API we use below
 
-    // Change font to Amazon Ember
-    await page.locator('#AmazonEmber').click()
+    // Make sure the reader UI is actually visible; toolbars auto-hide
+    await scope.waitForLoadState?.('domcontentloaded').catch(() => {});
+    await delay(500);
 
-    // Change layout to single column
-    await page
-      .locator('[role="radiogroup"][aria-label$=" columns"]', {
-        hasText: 'Single Column'
-      })
-      .click()
+    // Nudge the header/toolbar to appear
+    try {
+      await page.locator('#reader-header, .top-chrome, ion-toolbar').first().hover({ force: true });
+    } catch {}
+    try {
+      await page.mouse.move(50, 50);
+    } catch {}
 
-    await page.locator('ion-button[title="Reader settings"]').click()
-    await delay(1000)
+    // Candidate locators for the settings button (label varies: "Reader settings", "Aa", etc.)
+    const candidates = [
+      scope.getByRole?.('button', { name: /reader settings/i } as any),
+      scope.getByRole?.('button', { name: /^aa$/i } as any),
+      scope.locator?.('ion-button[title="Reader settings"]'),
+      scope.locator?.('button[title="Reader settings"]'),
+      scope.locator?.('ion-button[title="Aa"]'),
+      scope.locator?.('[data-testid="reader-settings"], [aria-label="Reader settings"]'),
+    ].filter(Boolean) as Locator[];
+
+    let clicked = false;
+    const deadline = Date.now() + 30_000;
+
+    // Keep trying until one becomes visible or we time out
+    while (!clicked && Date.now() < deadline) {
+      for (const cand of candidates) {
+        if (await cand.isVisible().catch(() => false)) {
+          await cand.click({ timeout: 2_000 }).catch(() => {});
+          clicked = true;
+          break;
+        }
+      }
+      if (!clicked) {
+        // Re-hover the header to keep toolbar visible
+        await page.locator('#reader-header, .top-chrome, ion-toolbar').first().hover({ force: true }).catch(() => {});
+        await delay(300);
+      }
+    }
+
+    if (!clicked) {
+      await page.screenshot({ path: 'reader-settings-timeout.png', fullPage: true }).catch(() => {});
+      throw new Error('Could not find the Reader Settings button. Saved screenshot: reader-settings-timeout.png');
+    }
+
+    await delay(800);
+
+    // Change font to Amazon Ember (best-effort across UIs)
+    const ember = scope.locator?.('#AmazonEmber, [data-font="Amazon Ember"], button:has-text("Amazon Ember")');
+    if (ember) {
+      await ember.first().click({ timeout: 2_000 }).catch(() => {});
+    }
+
+    // Change layout to single column (label text can vary)
+    const singleColGroup = scope.locator?.('[role="radiogroup"][aria-label$=" columns"]');
+    if (singleColGroup) {
+      await singleColGroup.filter({ hasText: /single column/i }).first().click({ timeout: 2_000 }).catch(() => {});
+    } else {
+      await scope.getByRole?.('radio', { name: /single column/i } as any).click({ timeout: 2_000 }).catch(() => {});
+    }
+
+    // Close settings
+    const closeSettings = [
+      scope.locator?.('ion-button[title="Reader settings"]'),
+      scope.locator?.('button[title="Reader settings"]'),
+      scope.getByRole?.('button', { name: /^aa$/i } as any),
+    ].filter(Boolean) as Locator[];
+
+    for (const c of closeSettings) {
+      if (await c.isVisible().catch(() => false)) {
+        await c.click({ timeout: 2_000 }).catch(() => {});
+        break;
+      }
+    }
+
+    await delay(500);
   }
 
   async function goToPage(pageNumber: number) {
