@@ -206,6 +206,8 @@ async function main() {
     } catch {}
 
     // Candidate locators for the settings button (label varies: "Reader settings", "Aa", etc.)
+    // Overlay/panel that appears when settings are open (best-effort across UIs)
+    const settingsOverlay = scope.locator?.('ion-popover, ion-modal, [role="dialog"], .reader-settings')
     const candidates = [
       scope.getByRole?.('button', { name: /reader settings/i } as any),
       scope.getByRole?.('button', { name: /^aa$/i } as any),
@@ -255,24 +257,138 @@ async function main() {
       await scope.getByRole?.('radio', { name: /single column/i } as any).click({ timeout: 2_000 }).catch(() => {});
     }
 
-    // Close settings
+    // Give the UI a moment to apply changes before we try to close it
+    await delay(200);
+
+    // Close settings (toggle Aa or click the same button again)
     const closeSettings = [
       scope.locator?.('ion-button[title="Reader settings"]'),
       scope.locator?.('button[title="Reader settings"]'),
       scope.getByRole?.('button', { name: /^aa$/i } as any),
     ].filter(Boolean) as Locator[];
 
+    let closed = false;
     for (const c of closeSettings) {
       if (await c.isVisible().catch(() => false)) {
         await c.click({ timeout: 2_000 }).catch(() => {});
+        // Wait briefly to see if overlay disappears
+        if (settingsOverlay && await settingsOverlay.first().isVisible().catch(() => false)) {
+          await settingsOverlay.first().waitFor({ state: 'hidden', timeout: 1_000 }).catch(() => {});
+        }
+        closed = true;
         break;
       }
     }
 
-    await delay(500);
+    // Fallback: force-close via Escape or clicking outside
+    const closeDeadline = Date.now() + 3_000;
+    while (settingsOverlay && await settingsOverlay.first().isVisible().catch(() => false) && Date.now() < closeDeadline) {
+      await page.keyboard.press('Escape').catch(() => {});
+      await delay(150);
+      if (await settingsOverlay.first().isVisible().catch(() => false)) {
+        // Click outside the overlay to dismiss if possible
+        await page.mouse.click(10, 10).catch(() => {});
+        await delay(150);
+      }
+      if (!closed) {
+        // Try toggling the Aa/settings button again
+        for (const c of closeSettings) {
+          if (await c.isVisible().catch(() => false)) {
+            await c.click({ timeout: 1_000 }).catch(() => {});
+            break;
+          }
+        }
+      }
+    }
+
+    // Final safety: ensure overlay is hidden before proceeding
+    if (settingsOverlay && await settingsOverlay.first().isVisible().catch(() => false)) {
+      await page.screenshot({ path: 'settings-stuck.png', fullPage: true }).catch(() => {});
+      throw new Error('Reader Settings panel did not close. Saved screenshot: settings-stuck.png');
+    }
+
+    await delay(300);
+  }
+
+  async function openTableOfContents() {
+    // Ensure no modal/panel is open before attempting TOC
+    await page.keyboard.press('Escape').catch(() => {});
+    await delay(100);
+
+    // Some Kindle layouts render inside an iframe; prefer that if present
+    const readerFrame = page.frame({ url: /read\.amazon\./ }) || page.mainFrame();
+    const scope = readerFrame as unknown as Page; // Page & Frame share locator API used below
+
+    // Make toolbar visible
+    await scope.waitForLoadState?.('domcontentloaded').catch(() => {});
+    await delay(300);
+    await page.locator('#reader-header, .top-chrome, ion-toolbar').first().hover({ force: true }).catch(() => {});
+
+    const directCandidates: Locator[] = [
+      scope.getByRole?.('button', { name: /table of contents/i } as any),
+      scope.getByRole?.('button', { name: /contents/i } as any),
+      scope.locator?.('ion-button[title="Table of Contents"]'),
+      scope.locator?.('button[title="Table of Contents"]'),
+      scope.locator?.('[aria-label="Table of Contents"], [data-testid="toc-button"]'),
+    ].filter(Boolean) as Locator[];
+
+    const deadline = Date.now() + 30_000;
+    let opened = false;
+
+    // Try direct buttons first with retries while the toolbar may be auto-hiding
+    while (!opened && Date.now() < deadline) {
+      for (const cand of directCandidates) {
+        if (await cand.isVisible().catch(() => false)) {
+          await cand.click({ timeout: 1_000 }).catch(() => {});
+          opened = true;
+          // Wait for side menu / TOC panel to render (best-effort)
+          await page.locator('ion-menu, .side-menu, .toc, ion-list').first().waitFor({ state: 'visible', timeout: 2_000 }).catch(() => {});
+          break;
+        }
+      }
+      if (!opened) {
+        // Re-hover header to keep toolbar visible and retry
+        await page.locator('#reader-header, .top-chrome, ion-toolbar').first().hover({ force: true }).catch(() => {});
+        await delay(250);
+      }
+    }
+
+    // Fallback path via the hamburger/reader menu
+    if (!opened) {
+      // Open the menu if present
+      const menuBtn = scope.locator?.('ion-button[title="Reader menu"], button[title="Reader menu"], [aria-label="Reader menu"]');
+      if (menuBtn && await menuBtn.first().isVisible().catch(() => false)) {
+        await menuBtn.first().click({ timeout: 2_000 }).catch(() => {});
+        await delay(400);
+      }
+
+      const menuItems: Locator[] = [
+        scope.locator?.('ion-item[role="listitem"]:has-text("Table of Contents")'),
+        scope.locator?.('ion-item[role="listitem"]:has-text("Contents")'),
+        scope.getByRole?.('menuitem', { name: /table of contents|contents/i } as any),
+      ].filter(Boolean) as Locator[];
+
+      for (const item of menuItems) {
+        if (await item.isVisible().catch(() => false)) {
+          await item.click({ timeout: 2_000 }).catch(() => {});
+          opened = true;
+          await page.locator('ion-menu, .side-menu, .toc, ion-list').first().waitFor({ state: 'visible', timeout: 2_000 }).catch(() => {});
+          break;
+        }
+      }
+    }
+
+    if (!opened) {
+      await page.screenshot({ path: 'toc-open-timeout.png', fullPage: true }).catch(() => {});
+      throw new Error('Could not open Table of Contents. Saved screenshot: toc-open-timeout.png');
+    }
+
+    await delay(800);
   }
 
   async function goToPage(pageNumber: number) {
+    await page.keyboard.press('Escape').catch(() => {});
+    await delay(100);
     await delay(1000)
     await page.locator('#reader-header').hover({ force: true })
     await delay(200)
@@ -319,8 +435,7 @@ async function main() {
 
   const initialPageNav = await getPageNav()
 
-  await page.locator('ion-button[title="Table of Contents"]').click()
-  await delay(1000)
+  await openTableOfContents()
 
   const $tocItems = await page.locator('ion-list ion-item').all()
   const tocItems: Array<TocItem> = []
