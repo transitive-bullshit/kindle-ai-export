@@ -16,6 +16,49 @@ import {
   parseJsonpResponse
 } from './utils'
 
+const TIME = {
+  otpVisible: 120_000,
+  navOpen: 30_000,
+  click: 1_000,
+  menuOpen: 10_000,
+  footerSample: 150,
+  imgChangeWait: 1_200,
+  finalWait: 6_000,
+} as const;
+
+const SEL = {
+  mainImg: '#kr-renderer .kg-full-page-img img',
+  footerTitle: 'ion-footer ion-title',
+  chevronRight: '.kr-chevron-container-right',
+  chevronLeft: '.kr-chevron-container-left',
+  readerHeader: '#reader-header, .top-chrome, ion-toolbar',
+  tocItems: 'ion-list ion-item',
+} as const;
+
+function getReaderScope(page: Page): Page {
+  return (page.frame({ url: /read\.amazon\./ }) || page.mainFrame()) as unknown as Page;
+}
+
+async function withCleanCapture<T>(page: Page, fn: () => Promise<T>): Promise<T> {
+  const styleEl = await page
+    .addStyleTag({
+      content:
+        '.top-chrome, ion-toolbar, ion-footer { opacity: 0 !important; } ion-popover, ion-modal { display: none !important; }',
+    })
+    .catch(() => null);
+  try {
+    return await fn();
+  } finally {
+    if (styleEl) {
+      await styleEl
+        .evaluate((el: any) => {
+          if (el && el.parentNode) el.parentNode.removeChild(el);
+        })
+        .catch(() => {});
+    }
+  }
+}
+
 const DBG = !!process.env.DEBUG_KINDLE;
 function dlog(...args: any[]) { if (DBG) console.warn(new Date().toISOString(), '-', ...args); }
 function short(v?: string | null) {
@@ -37,7 +80,7 @@ interface TocItem extends PageNav {
 async function completeOtpFlow(page: Page, code: string) {
   // Wait for any known OTP input to appear (Amazon uses several variants)
   const otpInput = page.locator('input#cvf-input-code, input[name="code"], input[type="tel"]');
-  await otpInput.waitFor({ state: 'visible', timeout: 120_000 });
+  await otpInput.waitFor({ state: 'visible', timeout: TIME.otpVisible });
 
   await otpInput.fill(code);
 
@@ -92,7 +135,7 @@ async function completeOtpFlow(page: Page, code: string) {
 
 async function getFooterRaw(page: Page) {
   try {
-    const t = await page.locator('ion-footer ion-title').first().textContent({ timeout: 2000 });
+    const t = await page.locator(SEL.footerTitle).first().textContent({ timeout: 2000 });
     return (t || '').trim();
   } catch { return ''; }
 }
@@ -105,16 +148,19 @@ async function main() {
   assert(amazonEmail, 'AMAZON_EMAIL is required')
   assert(amazonPassword, 'AMAZON_PASSWORD is required')
 
+  let context: ReturnType<typeof chromium.launchPersistentContext> extends Promise<infer T> ? T | undefined : any;
+  let pageRef: Page | undefined;
+  try {
+
   const outDir = path.join('out', asin)
   const userDataDir = path.join(outDir, 'data')
   const pageScreenshotsDir = path.join(outDir, 'pages')
   await fs.mkdir(userDataDir, { recursive: true })
   await fs.mkdir(pageScreenshotsDir, { recursive: true })
 
-  const krRendererMainImageSelector = '#kr-renderer .kg-full-page-img img'
   const bookReaderUrl = `https://read.amazon.com/?asin=${asin}`
 
-  const context = await chromium.launchPersistentContext(userDataDir, {
+  context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     channel: 'chrome',
     executablePath:
@@ -124,7 +170,7 @@ async function main() {
     deviceScaleFactor: 2,
     viewport: { width: 1400, height: 1800 }
   })
-  const page = await context.newPage()
+  pageRef = await context.newPage(); const page = pageRef;
   if (DBG) {
     page.on('console', (msg) => dlog('[browser]', msg.type(), msg.text()));
     page.on('requestfailed', (req) => dlog('[requestfailed]', req.failure()?.errorText, req.url()));
@@ -208,9 +254,7 @@ async function main() {
 
   // Note: Playwright's Frame and Page share the `locator` and `getByRole` APIs used here.
   async function updateSettings() {
-    // Some Kindle flows render the reader inside an iframe; prefer that if present
-    const readerFrame = page.frame({ url: /read\.amazon\./ }) || page.mainFrame();
-    const scope = readerFrame as unknown as Page; // Page & Frame share locator API we use below
+    const scope = getReaderScope(page);
 
     // Make sure the reader UI is actually visible; toolbars auto-hide
     await scope.waitForLoadState?.('domcontentloaded').catch(() => {});
@@ -218,7 +262,7 @@ async function main() {
 
     // Nudge the header/toolbar to appear
     try {
-      await page.locator('#reader-header, .top-chrome, ion-toolbar').first().hover({ force: true });
+      await page.locator(SEL.readerHeader).first().hover({ force: true });
     } catch {}
     try {
       await page.mouse.move(50, 50);
@@ -250,7 +294,7 @@ async function main() {
       }
       if (!clicked) {
         // Re-hover the header to keep toolbar visible
-        await page.locator('#reader-header, .top-chrome, ion-toolbar').first().hover({ force: true }).catch(() => {});
+        await page.locator(SEL.readerHeader).first().hover({ force: true }).catch(() => {});
         await delay(300);
       }
     }
@@ -334,14 +378,12 @@ async function main() {
     await page.keyboard.press('Escape').catch(() => {});
     await delay(100);
 
-    // Some Kindle layouts render inside an iframe; prefer that if present
-    const readerFrame = page.frame({ url: /read\.amazon\./ }) || page.mainFrame();
-    const scope = readerFrame as unknown as Page; // Page & Frame share locator API used below
+    const scope = getReaderScope(page);
 
     // Make toolbar visible
     await scope.waitForLoadState?.('domcontentloaded').catch(() => {});
     await delay(300);
-    await page.locator('#reader-header, .top-chrome, ion-toolbar').first().hover({ force: true }).catch(() => {});
+    await page.locator(SEL.readerHeader).first().hover({ force: true }).catch(() => {});
 
     const directCandidates: Locator[] = [
       scope.getByRole?.('button', { name: /table of contents/i } as any),
@@ -367,7 +409,7 @@ async function main() {
       }
       if (!opened) {
         // Re-hover header to keep toolbar visible and retry
-        await page.locator('#reader-header, .top-chrome, ion-toolbar').first().hover({ force: true }).catch(() => {});
+        await page.locator(SEL.readerHeader).first().hover({ force: true }).catch(() => {});
         await delay(250);
       }
     }
@@ -424,14 +466,12 @@ async function main() {
       }
     }
 
-    // Some Kindle layouts render the reader inside an iframe; prefer that if present
-    const readerFrame = page.frame({ url: /read\.amazon\./ }) || page.mainFrame();
-    const scope = readerFrame as unknown as Page; // Page & Frame share locator API used below
+    const scope = getReaderScope(page);
 
     // Make toolbar visible (it auto-hides)
     const makeToolbarVisible = async () => {
       await scope.waitForLoadState?.('domcontentloaded').catch(() => {});
-      await page.locator('#reader-header, .top-chrome, ion-toolbar').first().hover({ force: true }).catch(() => {});
+      await page.locator(SEL.readerHeader).first().hover({ force: true }).catch(() => {});
       await delay(150);
       await page.mouse.move(60, 60).catch(() => {});
       await delay(150);
@@ -516,10 +556,10 @@ async function main() {
       // Determine direction and walk with safety limits
       const maxSteps = 1200; // generous upper bound for big books
       let steps = 0;
-      let lastSrc = await page.locator(krRendererMainImageSelector).getAttribute('src').catch(() => undefined);
+      let lastSrc = await page.locator(SEL.mainImg).getAttribute('src').catch(() => undefined);
 
       const clickChevron = async (dir: 'left' | 'right') => {
-        const selector = dir === 'left' ? '.kr-chevron-container-left' : '.kr-chevron-container-right';
+        const selector = dir === 'left' ? SEL.chevronLeft : SEL.chevronRight;
         await page.locator(selector).click({ timeout: 1_000 }).catch(() => {});
       };
 
@@ -532,7 +572,7 @@ async function main() {
         // Wait for image to change or page number to update
         const startWait = Date.now();
         while (Date.now() - startWait < 1200) {
-          const srcNow = await page.locator(krRendererMainImageSelector).getAttribute('src').catch(() => lastSrc);
+          const srcNow = await page.locator(SEL.mainImg).getAttribute('src').catch(() => lastSrc);
           if (srcNow && srcNow !== lastSrc) { lastSrc = srcNow; break; }
           await delay(100);
         }
@@ -548,8 +588,7 @@ async function main() {
         await delay(150);
 
         // Re-attempt the Go To flow quickly
-        const readerFrame2 = page.frame({ url: /read\.amazon\./ }) || page.mainFrame();
-        const scope2 = readerFrame2 as unknown as Page;
+        const scope2 = getReaderScope(page);
         const reOpenMenu = [
           scope2.locator?.('ion-button[title="Reader menu"]'),
           scope2.locator?.('button[title="Reader menu"]'),
@@ -577,7 +616,7 @@ async function main() {
         }
 
         // Final wait for footer state
-        const finalWaitDeadline = Date.now() + 6_000;
+        const finalWaitDeadline = Date.now() + TIME.finalWait;
         while (Date.now() < finalWaitDeadline) {
           nav = await getPageNav(false).catch(() => nav);
           if (nav?.page === pageNumber) break;
@@ -600,7 +639,7 @@ async function main() {
 
   async function getPageNav(log: boolean = process.env.LOG_FOOTER === '1') {
     const footerText = await page
-      .locator('ion-footer ion-title')
+      .locator(SEL.footerTitle)
       .first()
       .textContent()
     if (DBG && log) dlog('footer raw:', (footerText || '').trim());
@@ -629,7 +668,7 @@ async function main() {
 
   await openTableOfContents()
 
-  const $tocItems = await page.locator('ion-list ion-item').all()
+  const $tocItems = await page.locator(SEL.tocItems).all()
   const tocItems: Array<TocItem> = []
 
   console.warn(`initializing ${$tocItems.length} TOC items...`)
@@ -681,9 +720,9 @@ async function main() {
   // Detect a UI state where there's no visible next chevron and no readable footer
   async function isEndState() {
     try {
-      const rightChevron = page.locator('.kr-chevron-container-right');
+      const rightChevron = page.locator(SEL.chevronRight);
       const hasChevron = await rightChevron.isVisible().catch(() => false);
-      const footer = page.locator('ion-footer ion-title').first();
+      const footer = page.locator(SEL.footerTitle).first();
       const footerText = (await footer.textContent().catch(() => null))?.trim() || '';
       const parsed = parsePageNav(footerText);
       const nearEnd = parsed?.page !== undefined && parsed?.total !== undefined && parsed.page >= parsed.total - 1;
@@ -700,13 +739,13 @@ async function main() {
 
   // Try multiple ways to advance one page when the right chevron isn't clickable/visible
   async function advanceOnePageFromStuck(prevSrc?: string, targetNextPage?: number) {
-    const rightChevron = page.locator('.kr-chevron-container-right');
+    const rightChevron = page.locator(SEL.chevronRight);
 
     // 1) If the chevron is visible, click it
     if (await rightChevron.isVisible().catch(() => false)) {
       await rightChevron.click({ timeout: 1000 }).catch(() => {});
       await delay(200);
-      const newSrc = await page.locator(krRendererMainImageSelector).getAttribute('src').catch(() => undefined);
+      const newSrc = await page.locator(SEL.mainImg).getAttribute('src').catch(() => undefined);
       if (prevSrc && newSrc && newSrc !== prevSrc) return true;
     }
 
@@ -714,16 +753,16 @@ async function main() {
     for (const key of ['ArrowRight', 'PageDown', 'Space']) {
       await page.keyboard.press(key).catch(() => {});
       await delay(250);
-      const newSrc = await page.locator(krRendererMainImageSelector).getAttribute('src').catch(() => undefined);
+      const newSrc = await page.locator(SEL.mainImg).getAttribute('src').catch(() => undefined);
       if (prevSrc && newSrc && newSrc !== prevSrc) return true;
     }
 
     // 3) Click right side of the page image
-    const box = await page.locator(krRendererMainImageSelector).boundingBox().catch(() => null);
+    const box = await page.locator(SEL.mainImg).boundingBox().catch(() => null);
     if (box) {
       await page.mouse.click(box.x + box.width * 0.85, box.y + box.height * 0.5).catch(() => {});
       await delay(250);
-      const newSrc = await page.locator(krRendererMainImageSelector).getAttribute('src').catch(() => undefined);
+      const newSrc = await page.locator(SEL.mainImg).getAttribute('src').catch(() => undefined);
       if (prevSrc && newSrc && newSrc !== prevSrc) return true;
     }
 
@@ -759,7 +798,7 @@ async function main() {
 
     const index = pages.length
     const src = await page
-      .locator(krRendererMainImageSelector)
+      .locator(SEL.mainImg)
       .getAttribute('src')
     dlog('loop: at page', pageNav.page, 'of', pageNav.total, 'src', short(src));
 
@@ -773,7 +812,7 @@ async function main() {
         // Re-sample nav and src after attempting to advance
         await delay(200);
         const reNav = await getPageNav(false).catch(() => pageNav);
-        const reSrc = await page.locator(krRendererMainImageSelector).getAttribute('src').catch(() => src);
+        const reSrc = await page.locator(SEL.mainImg).getAttribute('src').catch(() => src);
         if (reNav?.page !== pageNav.page) {
           // We advanced; update locals and continue to next iteration to capture the new page cleanly
           continue;
@@ -782,16 +821,13 @@ async function main() {
     }
 
     // Temporarily hide reader chrome for a clean capture
-    const styleEl = await page.addStyleTag({
-      content: `
-        .top-chrome, ion-toolbar, ion-footer { opacity: 0 !important; }
-        ion-popover, ion-modal { display: none !important; }
-      `
-    }).catch(() => null)
+    const b = await withCleanCapture(page, () =>
+      page.locator(SEL.mainImg).screenshot({ type: 'png', scale: 'css' })
+    );
 
     // Log effective render size of the main image (helps confirm print-quality)
     try {
-      const dims = await page.locator(krRendererMainImageSelector).evaluate((img: HTMLImageElement) => ({
+      const dims = await page.locator(SEL.mainImg).evaluate((img: HTMLImageElement) => ({
         naturalWidth: img.naturalWidth || 0,
         naturalHeight: img.naturalHeight || 0,
         cssWidth: img.width || (img as any).clientWidth || 0,
@@ -799,19 +835,6 @@ async function main() {
       }))
       dlog('dims', dims)
     } catch {}
-
-    const b = await page
-      .locator(krRendererMainImageSelector)
-      .screenshot({ type: 'png', scale: 'css' })
-
-    // Remove the temporary style if we added it
-    if (styleEl) {
-      await styleEl.evaluate((el: any) => {
-        if (el && el.parentNode) {
-          el.parentNode.removeChild(el);
-        }
-      }).catch(() => {})
-          }
 
     const screenshotPath = path.join(
       pageScreenshotsDir,
@@ -863,19 +886,9 @@ async function main() {
     if (await isEndState()) {
       await delay(200);
 
-      // Temporarily hide reader chrome for a clean capture
-      const styleEl2 = await page.addStyleTag({
-        content: `
-          .top-chrome, ion-toolbar, ion-footer { opacity: 0 !important; }
-          ion-popover, ion-modal { display: none !important; }
-        `
-      }).catch(() => null)
-
-      const b2 = await page.locator(krRendererMainImageSelector).screenshot({ type: 'png', scale: 'css' });
-
-      if (styleEl2) {
-        await styleEl2.evaluate((el: any) => { if (el && el.parentNode) { el.parentNode.removeChild(el); } }).catch(() => {})
-      }
+      const b2 = await withCleanCapture(page, () =>
+        page.locator(SEL.mainImg).screenshot({ type: 'png', scale: 'css' })
+      );
 
       const finalIndex = pages.length;
       // We may not have a footer page number here; best-effort label as current+1 (capped at total)
@@ -893,7 +906,7 @@ async function main() {
     }
     // Near-end guard: on penultimate page and no next chevron -> exit cleanly
     try {
-      const rightChevron = page.locator('.kr-chevron-container-right');
+      const rightChevron = page.locator(SEL.chevronRight);
       const chevronVisible = await rightChevron.isVisible().catch(() => false);
       if (!chevronVisible && pageNav.page >= Math.max(1, pageNav.total - 1)) {
         dlog('near-end guard triggered: page', pageNav.page, 'of', pageNav.total, 'no chevron');
@@ -918,7 +931,7 @@ async function main() {
       try {
         if (retries % 3 === 0) {
           // Prefer the chevron if present
-          const rightChevron = page.locator('.kr-chevron-container-right');
+          const rightChevron = page.locator(SEL.chevronRight);
           if (await rightChevron.isVisible().catch(() => false)) {
             await rightChevron.click({ timeout: 1000 }).catch(() => {});
           } else {
@@ -940,7 +953,7 @@ async function main() {
       // Wait for the image to change or the footer to update
       const startWait = Date.now();
       while (Date.now() - startWait < 1500) {
-        const srcNow = await page.locator(krRendererMainImageSelector).getAttribute('src').catch(() => lastSrc);
+        const srcNow = await page.locator(SEL.mainImg).getAttribute('src').catch(() => lastSrc);
         if (srcNow && srcNow !== lastSrc) { lastSrc = srcNow; break; }
         const navNow = await getPageNav(false).catch(() => pageNav);
         if (navNow?.page && navNow.page !== pageNav.page) {
@@ -999,8 +1012,10 @@ async function main() {
     }
   }
 
-  await page.close()
-  await context.close()
+  } finally {
+    await pageRef?.close().catch(() => {});
+    await context?.close().catch(() => {});
+  }
 }
 
 function parsePageNav(text: string | null): PageNav | undefined {
