@@ -16,6 +16,13 @@ import {
   parseJsonpResponse
 } from './utils'
 
+const DBG = !!process.env.DEBUG_KINDLE;
+function dlog(...args: any[]) { if (DBG) console.warn(new Date().toISOString(), '-', ...args); }
+function short(v?: string | null) {
+  if (!v) return String(v);
+  try { const u = new URL(v); return `${u.pathname.split('/').pop()}`; } catch { return v.length > 64 ? v.slice(0,64) + '…' : v; }
+}
+
 interface PageNav {
   page?: number
   location?: number
@@ -83,6 +90,13 @@ async function completeOtpFlow(page: Page, code: string) {
   ]);
 }
 
+async function getFooterRaw(page: Page) {
+  try {
+    const t = await page.locator('ion-footer ion-title').first().textContent({ timeout: 2000 });
+    return (t || '').trim();
+  } catch { return ''; }
+}
+
 async function main() {
   const asin = getEnv('ASIN')
   const amazonEmail = getEnv('AMAZON_EMAIL')
@@ -108,9 +122,13 @@ async function main() {
     args: ['--hide-crash-restore-bubble'],
     ignoreDefaultArgs: ['--enable-automation'],
     deviceScaleFactor: 2,
-    viewport: { width: 1280, height: 720 }
+    viewport: { width: 1400, height: 1800 }
   })
   const page = await context.newPage()
+  if (DBG) {
+    page.on('console', (msg) => dlog('[browser]', msg.type(), msg.text()));
+    page.on('requestfailed', (req) => dlog('[requestfailed]', req.failure()?.errorText, req.url()));
+  }
 
   let info: BookInfo | undefined
   let meta: BookMeta | undefined
@@ -148,6 +166,7 @@ async function main() {
     page.goto(bookReaderUrl, { timeout: 30_000 }),
     page.waitForURL('**/ap/signin', { timeout: 30_000 })
   ])
+  dlog('landed on', page.url());
 
   if (/\/ap\/signin/g.test(new URL(page.url()).pathname)) {
     await page.locator('input[type="email"]').fill(amazonEmail)
@@ -392,7 +411,7 @@ async function main() {
     await delay(100);
 
     // If we are already on the requested page, short-circuit
-    let current = await getPageNav().catch(() => undefined as any);
+    let current = await getPageNav(false).catch(() => undefined as any);
     if (current?.page === pageNumber) {
       return;
     }
@@ -487,7 +506,7 @@ async function main() {
     const waitDeadline = Date.now() + 12_000;
     let nav = undefined as any;
     while (Date.now() < waitDeadline) {
-      nav = await getPageNav().catch(() => undefined as any);
+      nav = await getPageNav(false).catch(() => undefined as any);
       if (nav?.page === pageNumber) break;
       await delay(150);
     }
@@ -505,7 +524,7 @@ async function main() {
       };
 
       // Re-sample current page
-      nav = await getPageNav().catch(() => undefined as any);
+      nav = await getPageNav(false).catch(() => undefined as any);
 
       while (nav?.page !== undefined && nav.page !== pageNumber && steps < maxSteps) {
         const dir = nav.page > pageNumber ? 'left' : 'right';
@@ -518,7 +537,7 @@ async function main() {
           await delay(100);
         }
         await delay(100);
-        nav = await getPageNav().catch(() => nav);
+        nav = await getPageNav(false).catch(() => nav);
         steps++;
       }
 
@@ -560,7 +579,7 @@ async function main() {
         // Final wait for footer state
         const finalWaitDeadline = Date.now() + 6_000;
         while (Date.now() < finalWaitDeadline) {
-          nav = await getPageNav().catch(() => nav);
+          nav = await getPageNav(false).catch(() => nav);
           if (nav?.page === pageNumber) break;
           await delay(150);
         }
@@ -579,11 +598,12 @@ async function main() {
     }
   }
 
-  async function getPageNav() {
+  async function getPageNav(log: boolean = process.env.LOG_FOOTER === '1') {
     const footerText = await page
       .locator('ion-footer ion-title')
       .first()
       .textContent()
+    if (DBG && log) dlog('footer raw:', (footerText || '').trim());
     return parsePageNav(footerText)
   }
 
@@ -605,7 +625,7 @@ async function main() {
   await ensureFixedHeaderUI()
   await updateSettings()
 
-  const initialPageNav = await getPageNav()
+  const initialPageNav = await getPageNav(false)
 
   await openTableOfContents()
 
@@ -622,7 +642,7 @@ async function main() {
     await tocItem.click()
     await delay(250)
 
-    const pageNav = await getPageNav()
+    const pageNav = await getPageNav(false)
     assert(pageNav)
 
     tocItems.push({
@@ -658,16 +678,78 @@ async function main() {
   )
   assert(totalContentPages > 0, 'No content pages found')
 
+  // Detect a UI state where there's no visible next chevron and no readable footer
+  async function isEndState() {
+    try {
+      const rightChevron = page.locator('.kr-chevron-container-right');
+      const hasChevron = await rightChevron.isVisible().catch(() => false);
+      const footer = page.locator('ion-footer ion-title').first();
+      const footerText = (await footer.textContent().catch(() => null))?.trim() || '';
+      const parsed = parsePageNav(footerText);
+      const nearEnd = parsed?.page !== undefined && parsed?.total !== undefined && parsed.page >= parsed.total - 1;
+      const hasFooter = !!parsed?.page || !!parsed?.location;
+      if (DBG) dlog('isEndState:', { hasChevron, footerText, parsed, nearEnd });
+      return (!hasChevron && !hasFooter) || (!hasChevron && nearEnd);
+    } catch {
+      return false;
+    }
+  }
+
   await page.locator('.side-menu-close-button').click()
   await delay(1000)
 
+  // Try multiple ways to advance one page when the right chevron isn't clickable/visible
+  async function advanceOnePageFromStuck(prevSrc?: string, targetNextPage?: number) {
+    const rightChevron = page.locator('.kr-chevron-container-right');
+
+    // 1) If the chevron is visible, click it
+    if (await rightChevron.isVisible().catch(() => false)) {
+      await rightChevron.click({ timeout: 1000 }).catch(() => {});
+      await delay(200);
+      const newSrc = await page.locator(krRendererMainImageSelector).getAttribute('src').catch(() => undefined);
+      if (prevSrc && newSrc && newSrc !== prevSrc) return true;
+    }
+
+    // 2) Keyboard navigation
+    for (const key of ['ArrowRight', 'PageDown', 'Space']) {
+      await page.keyboard.press(key).catch(() => {});
+      await delay(250);
+      const newSrc = await page.locator(krRendererMainImageSelector).getAttribute('src').catch(() => undefined);
+      if (prevSrc && newSrc && newSrc !== prevSrc) return true;
+    }
+
+    // 3) Click right side of the page image
+    const box = await page.locator(krRendererMainImageSelector).boundingBox().catch(() => null);
+    if (box) {
+      await page.mouse.click(box.x + box.width * 0.85, box.y + box.height * 0.5).catch(() => {});
+      await delay(250);
+      const newSrc = await page.locator(krRendererMainImageSelector).getAttribute('src').catch(() => undefined);
+      if (prevSrc && newSrc && newSrc !== prevSrc) return true;
+    }
+
+    // 4) Fallback: use Go To Page modal to jump to the next expected page
+    if (typeof targetNextPage === 'number') {
+      try {
+        await goToPage(targetNextPage);
+        return true;
+      } catch {}
+    }
+
+    return false;
+  }
+
   const pages: Array<PageChunk> = []
+  // Persistent progress trackers across iterations
+  let __lastCapturedPage: number | undefined = undefined;
+  let __stagnantCount = 0;
+  let __iterations = 0;
   console.warn(
     `reading ${totalContentPages} pages${total > totalContentPages ? ` (of ${total} total pages stopping at "${parsedToc.afterLastPageTocItem!.title}")` : ''}...`
   )
 
-  do {
-    const pageNav = await getPageNav()
+  let __reachedEnd = false;
+  while (!__reachedEnd) {
+    const pageNav = await getPageNav(false)
     if (pageNav?.page === undefined) {
       break
     }
@@ -676,14 +758,60 @@ async function main() {
     }
 
     const index = pages.length
-
     const src = await page
       .locator(krRendererMainImageSelector)
       .getAttribute('src')
+    dlog('loop: at page', pageNav.page, 'of', pageNav.total, 'src', short(src));
+
+    // If we somehow didn't advance and are still on the same page as the last capture, try to advance before capturing again
+    const prevEntry = pages.at(-1);
+    if (prevEntry && prevEntry.page === pageNav.page) {
+      dlog('loop: duplicate page detected, attempting advance');
+      const advanced = await advanceOnePageFromStuck(src ?? undefined, Math.min(pageNav.page + 1, pageNav.total));
+      dlog('loop: advance attempted');
+      if (advanced) {
+        // Re-sample nav and src after attempting to advance
+        await delay(200);
+        const reNav = await getPageNav(false).catch(() => pageNav);
+        const reSrc = await page.locator(krRendererMainImageSelector).getAttribute('src').catch(() => src);
+        if (reNav?.page !== pageNav.page) {
+          // We advanced; update locals and continue to next iteration to capture the new page cleanly
+          continue;
+        }
+      }
+    }
+
+    // Temporarily hide reader chrome for a clean capture
+    const styleEl = await page.addStyleTag({
+      content: `
+        .top-chrome, ion-toolbar, ion-footer { opacity: 0 !important; }
+        ion-popover, ion-modal { display: none !important; }
+      `
+    }).catch(() => null)
+
+    // Log effective render size of the main image (helps confirm print-quality)
+    try {
+      const dims = await page.locator(krRendererMainImageSelector).evaluate((img: HTMLImageElement) => ({
+        naturalWidth: img.naturalWidth || 0,
+        naturalHeight: img.naturalHeight || 0,
+        cssWidth: img.width || (img as any).clientWidth || 0,
+        cssHeight: img.height || (img as any).clientHeight || 0,
+      }))
+      dlog('dims', dims)
+    } catch {}
 
     const b = await page
       .locator(krRendererMainImageSelector)
       .screenshot({ type: 'png', scale: 'css' })
+
+    // Remove the temporary style if we added it
+    if (styleEl) {
+      await styleEl.evaluate((el: any) => {
+        if (el && el.parentNode) {
+          el.parentNode.removeChild(el);
+        }
+      }).catch(() => {})
+          }
 
     const screenshotPath = path.join(
       pageScreenshotsDir,
@@ -700,76 +828,170 @@ async function main() {
       screenshot: screenshotPath
     })
 
-    console.warn(pages.at(-1))
+    dlog('captured', pages.at(-1))
+
+    // Track progress across iterations; if page number doesn't change, count it
+    if (__lastCapturedPage === pageNav.page) {
+      __stagnantCount++;
+    } else {
+      __stagnantCount = 0;
+      __lastCapturedPage = pageNav.page;
+    }
+
+    // If we've been stagnant for several iterations, stop to avoid hanging
+    if (__stagnantCount >= 2) {
+      console.warn('no progress after multiple iterations; assuming end and exiting');
+      __reachedEnd = true;
+      break;
+    }
+
+    // Global safety: hard iteration cap to prevent infinite loops
+    __iterations++;
+    if (__iterations > totalContentPages * 2) {
+      console.warn('iteration cap reached; exiting to prevent hang');
+      __reachedEnd = true;
+      break;
+    }
 
     // Navigation is very spotty without this delay; I think it may be due to
     // the screenshot changing the DOM temporarily and not being stable yet.
     await delay(100)
 
+    // If we appear to be at the practical end (no footer and no next chevron),
+    // take one **final** safety screenshot and exit cleanly.
+    dlog('loop: checking end state');
+    if (await isEndState()) {
+      await delay(200);
+
+      // Temporarily hide reader chrome for a clean capture
+      const styleEl2 = await page.addStyleTag({
+        content: `
+          .top-chrome, ion-toolbar, ion-footer { opacity: 0 !important; }
+          ion-popover, ion-modal { display: none !important; }
+        `
+      }).catch(() => null)
+
+      const b2 = await page.locator(krRendererMainImageSelector).screenshot({ type: 'png', scale: 'css' });
+
+      if (styleEl2) {
+        await styleEl2.evaluate((el: any) => { if (el && el.parentNode) { el.parentNode.removeChild(el); } }).catch(() => {})
+      }
+
+      const finalIndex = pages.length;
+      // We may not have a footer page number here; best-effort label as current+1 (capped at total)
+      const labeledPage = pageNav.page !== undefined ? Math.min(pageNav.page + 1, pageNav.total) : pageNav.total;
+      const finalPath = path.join(
+        pageScreenshotsDir,
+        `${finalIndex}`.padStart(pagePadding, '0') + '-' + `${labeledPage}`.padStart(pagePadding, '0') + '.png'
+      );
+      await fs.writeFile(finalPath, b2);
+      pages.push({ index: finalIndex, page: labeledPage, total: pageNav.total, screenshot: finalPath });
+
+      console.warn('final end-of-book capture taken; exiting');
+      __reachedEnd = true;
+      break;
+    }
+    // Near-end guard: on penultimate page and no next chevron -> exit cleanly
+    try {
+      const rightChevron = page.locator('.kr-chevron-container-right');
+      const chevronVisible = await rightChevron.isVisible().catch(() => false);
+      if (!chevronVisible && pageNav.page >= Math.max(1, pageNav.total - 1)) {
+        dlog('near-end guard triggered: page', pageNav.page, 'of', pageNav.total, 'no chevron');
+        console.warn('penultimate page with no next control; exiting');
+        __reachedEnd = true;
+        break;
+      }
+    } catch {}
+
     if (pageNav.page >= totalContentPages) {
       // We've just captured the final page; stop before attempting navigation
+      __reachedEnd = true;
       break
     }
 
-    let retries = 0
+    let retries = 0;
+    const maxRetries = 20;
+    let lastSrc = src;
 
-    // Occasionally the next page button doesn't work, so ensure that the main
-    // image src actually changes before continuing.
     do {
+      dlog('retry', retries, 'lastSrc', short(lastSrc));
       try {
-        // Navigate to the next page
-        // await delay(100)
-        if (retries % 10 === 0) {
-          if (retries > 0) {
-            console.warn('retrying...', {
-              src,
-              retries,
-              ...pages.at(-1)
-            })
+        if (retries % 3 === 0) {
+          // Prefer the chevron if present
+          const rightChevron = page.locator('.kr-chevron-container-right');
+          if (await rightChevron.isVisible().catch(() => false)) {
+            await rightChevron.click({ timeout: 1000 }).catch(() => {});
+          } else {
+            // Use helper fallbacks when chevron is missing
+            const advanced = await advanceOnePageFromStuck(lastSrc ?? undefined, Math.min(pageNav.page + 1, pageNav.total));
+            if (!advanced) {
+              // If we're at the end (last or last-1 page), stop instead of looping forever
+              if (pageNav.total - pageNav.page <= 1) {
+                dlog('retry: end-of-book condition, stopping');
+                console.warn('end-of-book reached or next page control unavailable; stopping');
+                retries = maxRetries;
+                break;
+              }
+            }
           }
-
-          // Click the next page button
-          await page
-            .locator('.kr-chevron-container-right')
-            .click({ timeout: 1000 })
         }
-        // await delay(500)
-      } catch (err: any) {
-        // No next page to navigate to
-        console.warn(
-          'unable to navigate to next page; breaking...',
-          err.message
-        )
-        break
+      } catch {}
+
+      // Wait for the image to change or the footer to update
+      const startWait = Date.now();
+      while (Date.now() - startWait < 1500) {
+        const srcNow = await page.locator(krRendererMainImageSelector).getAttribute('src').catch(() => lastSrc);
+        if (srcNow && srcNow !== lastSrc) { lastSrc = srcNow; break; }
+        const navNow = await getPageNav(false).catch(() => pageNav);
+        if (navNow?.page && navNow.page !== pageNav.page) {
+          break;
+        }
+        await delay(120);
       }
 
-      const newSrc = await page
-        .locator(krRendererMainImageSelector)
-        .getAttribute('src')
-      if (newSrc !== src) {
-        break
+      const navNow = await getPageNav(false).catch(() => pageNav);
+      if (navNow?.page && navNow.page !== pageNav.page) {
+        break; // advanced successfully
       }
 
       if (pageNav.page >= totalContentPages) {
-        break
+        break; // we've captured the final target page
       }
 
-      await delay(100)
+      await delay(120);
+      retries++;
+    } while (retries < maxRetries)
 
-      ++retries
-    } while (true)
-  } while (true)
+    if (retries >= maxRetries) {
+      dlog('navigation retries exhausted');
+      console.warn('navigation retries exhausted; exiting at current page');
+      __reachedEnd = true;
+    }
+
+    // Final guard: if we did not advance (footer page unchanged), assume end and exit outer loop
+    const navAfter = await getPageNav(false).catch(() => pageNav);
+    const afterPage: number | undefined = navAfter?.page;
+    dlog('final guard: afterPage', afterPage, 'current', pageNav.page, 'totalCap', totalContentPages);
+    if (afterPage === undefined || afterPage === pageNav.page || afterPage >= totalContentPages) {
+      __reachedEnd = true;
+    }
+  }
 
   const result: BookMetadata = { info: info!, meta: meta!, toc, pages }
   await fs.writeFile(
     path.join(outDir, 'metadata.json'),
     JSON.stringify(result, null, 2)
   )
+  if (DBG) dlog('DONE: pages captured', pages.length);
   console.log(JSON.stringify(result, null, 2))
 
   if (initialPageNav?.page !== undefined) {
     const endedOn = pages.at(-1)?.page;
-    if (endedOn === initialPageNav.page) {
+    const SKIP_RESET = process.env.SKIP_RESET === '1' || DBG;
+
+    if (SKIP_RESET) {
+      console.warn(`skip reset enabled — leaving reader at page ${endedOn ?? 'unknown'}`);
+    } else if (endedOn === initialPageNav.page) {
       console.warn(`already on initial page ${initialPageNav.page}; skipping reset`);
     } else {
       console.warn(`resetting back to initial page ${initialPageNav.page}...`);
