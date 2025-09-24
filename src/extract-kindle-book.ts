@@ -447,10 +447,58 @@ async function main() {
     await delay(800);
   }
 
+  // Global flag: if the footer shows only "Location", disable large "Go to Page" jumps.
+  let LOCATION_MODE = false;
   async function goToPage(pageNumber: number) {
     // Dismiss any overlays first
     await page.keyboard.press('Escape').catch(() => {});
     await delay(100);
+
+    // LOCATION_MODE: Kindle often lacks a reliable "Go to Page" flow when only Locations are shown.
+    // In this mode we support advancing by a single step using in-page interactions only.
+    if (LOCATION_MODE) {
+      const nav0 = await getPageNav(false).catch(() => undefined as any);
+      if (!nav0?.page) return;                // normalized: page === location
+      if (pageNumber === nav0.page) return;
+      if (Math.abs(pageNumber - nav0.page) !== 1) {
+        throw new Error(`LOCATION_MODE: refusing to jump ${Math.abs(pageNumber - nav0.page)} steps; only +/-1 is supported.`);
+      }
+      // Focus the image so keys go to the reader
+      const img = page.locator(SEL.mainImg);
+      const box = await img.boundingBox().catch(() => null);
+      if (box) {
+        await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5).catch(() => {});
+        await delay(150);
+      }
+      const startSrc = await img.getAttribute('src').catch(() => undefined);
+      // Try chevron
+      const rightChevron = page.locator(SEL.chevronRight);
+      if (await rightChevron.isVisible().catch(() => false)) {
+        await rightChevron.click({ timeout: 800 }).catch(() => {});
+      } else {
+        // Try keyboard
+        for (const key of ['ArrowRight', 'PageDown', 'Space']) {
+          await page.keyboard.press(key).catch(() => {});
+          await delay(180);
+          const srcNow = await img.getAttribute('src').catch(() => startSrc);
+          if (srcNow && srcNow !== startSrc) return;
+        }
+        // Try right-side click
+        if (box) {
+          await page.mouse.click(box.x + box.width * 0.85, box.y + box.height * 0.5).catch(() => {});
+        }
+      }
+      // Wait briefly for footer/src change
+      const until = Date.now() + 1500;
+      while (Date.now() < until) {
+        const nav1 = await getPageNav(false).catch(() => nav0);
+        if (nav1?.page && nav1.page !== nav0.page) return;
+        const srcNow = await img.getAttribute('src').catch(() => startSrc);
+        if (srcNow && srcNow !== startSrc) return;
+        await delay(120);
+      }
+      throw new Error('LOCATION_MODE: step advance failed');
+    }
 
     // If we are already on the requested page, short-circuit
     let current = await getPageNav(false).catch(() => undefined as any);
@@ -631,7 +679,8 @@ async function main() {
     }
 
     // Close modal if it somehow remains
-    if (modal && await modal.first().isVisible().catch(() => false)) {
+    const modalEl = scope.locator?.('ion-modal, [role="dialog"]');
+    if (modalEl && await modalEl.first().isVisible().catch(() => false)) {
       await page.keyboard.press('Escape').catch(() => {});
       await delay(100);
     }
@@ -641,9 +690,16 @@ async function main() {
     const footerText = await page
       .locator(SEL.footerTitle)
       .first()
-      .textContent()
+      .textContent();
     if (DBG && log) dlog('footer raw:', (footerText || '').trim());
-    return parsePageNav(footerText)
+
+    const parsed = parsePageNav(footerText);
+
+    // Normalize: if the footer only shows "Location N of M", treat that as pages for downstream logic
+    if (parsed && parsed.page === undefined && parsed.location !== undefined) {
+      return { page: parsed.location, location: parsed.location, total: parsed.total };
+    }
+    return parsed;
   }
 
   async function ensureFixedHeaderUI() {
@@ -665,6 +721,14 @@ async function main() {
   await updateSettings()
 
   const initialPageNav = await getPageNav(false)
+  // Detect if footer exposes only "Location" (no true Page), for conservative nav
+  try {
+    const rawFooter = await getFooterRaw(page);
+    const rawParsed = parsePageNav(rawFooter);
+    if (rawParsed && rawParsed.page === undefined && rawParsed.location !== undefined) {
+      LOCATION_MODE = true;
+    }
+  } catch {}
 
   await openTableOfContents()
 
@@ -728,6 +792,8 @@ async function main() {
       const nearEnd = parsed?.page !== undefined && parsed?.total !== undefined && parsed.page >= parsed.total - 1;
       const hasFooter = !!parsed?.page || !!parsed?.location;
       if (DBG) dlog('isEndState:', { hasChevron, footerText, parsed, nearEnd });
+      // Do NOT treat as end if we have only a location footer; hidden chevrons are common at some zooms
+      if (!hasChevron && hasFooter && parsed && parsed.page === undefined && parsed.location !== undefined) return false;
       return (!hasChevron && !hasFooter) || (!hasChevron && nearEnd);
     } catch {
       return false;
@@ -740,34 +806,41 @@ async function main() {
   // Try multiple ways to advance one page when the right chevron isn't clickable/visible
   async function advanceOnePageFromStuck(prevSrc?: string, targetNextPage?: number) {
     const rightChevron = page.locator(SEL.chevronRight);
+    const img = page.locator(SEL.mainImg);
+    const box = await img.boundingBox().catch(() => null);
+
+    // Always focus the content image first so keyboard events go to the reader
+    if (box) {
+      await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5).catch(() => {});
+      await delay(120);
+    }
 
     // 1) If the chevron is visible, click it
     if (await rightChevron.isVisible().catch(() => false)) {
       await rightChevron.click({ timeout: 1000 }).catch(() => {});
       await delay(200);
-      const newSrc = await page.locator(SEL.mainImg).getAttribute('src').catch(() => undefined);
+      const newSrc = await img.getAttribute('src').catch(() => undefined);
       if (prevSrc && newSrc && newSrc !== prevSrc) return true;
     }
 
     // 2) Keyboard navigation
     for (const key of ['ArrowRight', 'PageDown', 'Space']) {
       await page.keyboard.press(key).catch(() => {});
-      await delay(250);
-      const newSrc = await page.locator(SEL.mainImg).getAttribute('src').catch(() => undefined);
+      await delay(220);
+      const newSrc = await img.getAttribute('src').catch(() => undefined);
       if (prevSrc && newSrc && newSrc !== prevSrc) return true;
     }
 
     // 3) Click right side of the page image
-    const box = await page.locator(SEL.mainImg).boundingBox().catch(() => null);
     if (box) {
       await page.mouse.click(box.x + box.width * 0.85, box.y + box.height * 0.5).catch(() => {});
-      await delay(250);
-      const newSrc = await page.locator(SEL.mainImg).getAttribute('src').catch(() => undefined);
+      await delay(220);
+      const newSrc = await img.getAttribute('src').catch(() => undefined);
       if (prevSrc && newSrc && newSrc !== prevSrc) return true;
     }
 
-    // 4) Fallback: use Go To Page modal to jump to the next expected page
-    if (typeof targetNextPage === 'number') {
+    // 4) Fallback: only on true Page-mode, attempt Go To Page to the next expected page
+    if (!LOCATION_MODE && typeof targetNextPage === 'number') {
       try {
         await goToPage(targetNextPage);
         return true;
@@ -892,7 +965,9 @@ async function main() {
 
       const finalIndex = pages.length;
       // We may not have a footer page number here; best-effort label as current+1 (capped at total)
-      const labeledPage = pageNav.page !== undefined ? Math.min(pageNav.page + 1, pageNav.total) : pageNav.total;
+      const labeledPage = pageNav.page !== undefined
+        ? Math.min(pageNav.page + 1, pageNav.total)
+        : Math.min((pageNav.location ?? pageNav.total) + 1, pageNav.total);
       const finalPath = path.join(
         pageScreenshotsDir,
         `${finalIndex}`.padStart(pagePadding, '0') + '-' + `${labeledPage}`.padStart(pagePadding, '0') + '.png'
@@ -929,7 +1004,16 @@ async function main() {
     do {
       dlog('retry', retries, 'lastSrc', short(lastSrc));
       try {
-        if (retries % 3 === 0) {
+        if (LOCATION_MODE) {
+          // In location-only books, always try the robust step advance (no Go To Page)
+          const advanced = await advanceOnePageFromStuck(lastSrc ?? undefined, Math.min(pageNav.page + 1, pageNav.total));
+          if (!advanced && (pageNav.total - pageNav.page <= 1)) {
+            dlog('retry: end-of-book condition (LOCATION_MODE), stopping');
+            console.warn('end-of-book reached or next page control unavailable; stopping');
+            retries = maxRetries;
+            break;
+          }
+        } else if (retries % 3 === 0) {
           // Prefer the chevron if present
           const rightChevron = page.locator(SEL.chevronRight);
           if (await rightChevron.isVisible().catch(() => false)) {
@@ -937,14 +1021,11 @@ async function main() {
           } else {
             // Use helper fallbacks when chevron is missing
             const advanced = await advanceOnePageFromStuck(lastSrc ?? undefined, Math.min(pageNav.page + 1, pageNav.total));
-            if (!advanced) {
-              // If we're at the end (last or last-1 page), stop instead of looping forever
-              if (pageNav.total - pageNav.page <= 1) {
-                dlog('retry: end-of-book condition, stopping');
-                console.warn('end-of-book reached or next page control unavailable; stopping');
-                retries = maxRetries;
-                break;
-              }
+            if (!advanced && (pageNav.total - pageNav.page <= 1)) {
+              dlog('retry: end-of-book condition, stopping');
+              console.warn('end-of-book reached or next page control unavailable; stopping');
+              retries = maxRetries;
+              break;
             }
           }
         }
@@ -1064,41 +1145,47 @@ function parsePageNav(text: string | null): PageNav | undefined {
 }
 
 function parseTocItems(tocItems: TocItem[]) {
+  // Normalize TOC items: if only `location` is present, treat it as `page`
+  const norm = tocItems.map((item) => {
+    if (item.page === undefined && item.location !== undefined) {
+      return { ...item, page: item.location } as TocItem;
+    }
+    return item;
+  });
+
   // Find the first page in the TOC which contains the main book content
-  // (after the title, table of contents, copyright, etc)
-  const firstPageTocItem = tocItems.find((item) => item.page !== undefined)
-  assert(firstPageTocItem, 'Unable to find first valid page in TOC')
+  const firstPageTocItem = norm.find((item) => item.page !== undefined);
+  assert(firstPageTocItem, 'Unable to find first valid page in TOC');
 
   // Try to find the first page in the TOC after the main book content
-  // (e.g. acknowledgements, about the author, etc)
-  const afterLastPageTocItem = tocItems.find((item) => {
-    if (item.page === undefined) return false
-    if (item === firstPageTocItem) return false
+  const afterLastPageTocItem = norm.find((item) => {
+    if (item.page === undefined) return false;
+    if (item === firstPageTocItem) return false;
 
-    const percentage = item.page / item.total
-    if (percentage < 0.9) return false
+    const percentage = item.page / item.total;
+    if (percentage < 0.9) return false;
 
-    if (/acknowledgements/i.test(item.title)) return true
-    if (/^discover more$/i.test(item.title)) return true
-    if (/^extras$/i.test(item.title)) return true
-    if (/about the author/i.test(item.title)) return true
-    if (/meet the author/i.test(item.title)) return true
-    if (/^also by /i.test(item.title)) return true
-    if (/^copyright$/i.test(item.title)) return true
-    if (/ teaser$/i.test(item.title)) return true
-    if (/ preview$/i.test(item.title)) return true
-    if (/^excerpt from/i.test(item.title)) return true
-    if (/^cast of characters$/i.test(item.title)) return true
-    if (/^timeline$/i.test(item.title)) return true
-    if (/^other titles/i.test(item.title)) return true
+    if (/acknowledgements/i.test(item.title)) return true;
+    if (/^discover more$/i.test(item.title)) return true;
+    if (/^extras$/i.test(item.title)) return true;
+    if (/about the author/i.test(item.title)) return true;
+    if (/meet the author/i.test(item.title)) return true;
+    if (/^also by /i.test(item.title)) return true;
+    if (/^copyright$/i.test(item.title)) return true;
+    if (/ teaser$/i.test(item.title)) return true;
+    if (/ preview$/i.test(item.title)) return true;
+    if (/^excerpt from/i.test(item.title)) return true;
+    if (/^cast of characters$/i.test(item.title)) return true;
+    if (/^timeline$/i.test(item.title)) return true;
+    if (/^other titles/i.test(item.title)) return true;
 
-    return false
-  })
+    return false;
+  });
 
   return {
     firstPageTocItem,
-    afterLastPageTocItem
-  }
+    afterLastPageTocItem,
+  };
 }
 
 await main()
