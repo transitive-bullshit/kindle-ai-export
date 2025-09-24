@@ -12,6 +12,33 @@ import { assert, getEnv } from './utils'
 
 const INDEX_PAGE_RE = /(\d+)-(\d+)\.png$/;
 
+function isChunk(v: unknown): v is ContentChunk {
+  return !!v && typeof (v as any).text === 'string' && typeof (v as any).page === 'number';
+}
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function jitter(ms: number, pct = 0.25) {
+  const d = ms * pct;
+  return Math.max(0, ms - d + Math.random() * (2 * d));
+}
+
+function normalizeOcrText(raw: string): string {
+  return raw
+    // drop leading/trailing lines that are just page numbers
+    .replace(/^(?:\s*\d+\s*$\n?)+/m, '')
+    .replace(/(?:\n?\s*\d+\s*$)+$/m, '')
+    // normalize whitespace
+    .replace(/[\t\f\r]+/g, ' ')
+    .replace(/\s+\n/g, '\n')
+    // trim doc and each line
+    .replace(/^\s+|\s+$/g, '')
+    .replace(/^\s*/gm, '')
+    .replace(/\s*$/gm, '');
+}
+
 function parseIndexPage(filePath: string): { index: number; page: number } {
   const m = filePath.match(INDEX_PAGE_RE);
   assert(m?.[1] && m?.[2], `invalid screenshot filename: ${filePath}`);
@@ -81,17 +108,14 @@ async function main() {
             });
 
             const rawText = res.choices[0]?.message.content ?? '';
-            const text = rawText
-              .replace(/^\s*\d+\s*$\n+/m, '')
-              .replaceAll(/^\s*/gm, '')
-              .replaceAll(/\s*$/gm, '');
+            const text = normalizeOcrText(rawText);
 
             if (!text || (text.length < 100 && /i'm sorry|cannot|copyright/i.test(text))) {
               attempt++;
               if (attempt >= maxRetries) {
                 throw new Error(`OCR refusal/empty after ${attempt} attempts`);
               }
-              await backoff(Math.min(60_000, 500 * 2 ** attempt));
+              await sleep(jitter(Math.min(60_000, 500 * 2 ** attempt)));
               continue;
             }
 
@@ -105,17 +129,17 @@ async function main() {
               attempt++;
               const wait = Math.min(90_000, 750 * 2 ** attempt);
               console.warn(`retry ${attempt}/${maxRetries} for ${screenshot} after error:`, msg);
-              await backoff(wait);
+              await sleep(jitter(wait));
               continue;
             }
             console.error(`error processing image ${index} (${screenshot})`, err);
-            return undefined as any; // allow filter(Boolean) to drop this page
+            return undefined; // allow type guard to drop this page
           }
         }
       },
       { concurrency: 4 }
     )
-  ).filter(Boolean)
+  ).filter(isChunk)
 
   // Sanity: log any pages that failed so you can re-run selectively
   const expected = pageScreenshots.length;
