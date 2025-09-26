@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { input } from '@inquirer/prompts'
 import delay from 'delay'
-import { chromium, type Locator, type Page } from 'playwright'
+import { chromium, type ConsoleMessage, type Locator, type Page, type Request, type Response } from 'playwright-core'
 
 import type { BookInfo, BookMeta, BookMetadata, PageChunk } from './types'
 import {
@@ -19,12 +19,13 @@ import {
 const TIME = {
   otpVisible: 120_000,
   navOpen: 30_000,
-  click: 1_000,
+  click: 1000,
   menuOpen: 10_000,
   footerSample: 150,
-  imgChangeWait: 1_200,
-  finalWait: 6_000,
+  imgChangeWait: 1200,
+  finalWait: 6000,
 } as const;
+
 
 const SEL = {
   mainImg: '#kr-renderer .kg-full-page-img img',
@@ -34,6 +35,23 @@ const SEL = {
   readerHeader: '#reader-header, .top-chrome, ion-toolbar',
   tocItems: 'ion-list ion-item',
 } as const;
+
+// Helper used to avoid declaring functions inside loops (fixes no-loop-func)
+async function captureMainImageBuffer(page: Page): Promise<Buffer> {
+  return withCleanCapture(page, () =>
+    page.locator(SEL.mainImg).screenshot({ type: 'png', scale: 'css' }) as Promise<Buffer>
+  );
+}
+
+// Serializable function for .evaluate to avoid inline lambdas inside loops
+function getImageDims(img: HTMLImageElement) {
+  return {
+    naturalWidth: img.naturalWidth || 0,
+    naturalHeight: img.naturalHeight || 0,
+    cssWidth: (img as any).width || (img as any).clientWidth || 0,
+    cssHeight: (img as any).height || (img as any).clientHeight || 0,
+  };
+}
 
 function getReaderScope(page: Page): Page {
   return (page.frame({ url: /read\.amazon\./ }) || page.mainFrame()) as unknown as Page;
@@ -51,15 +69,21 @@ async function withCleanCapture<T>(page: Page, fn: () => Promise<T>): Promise<T>
   } finally {
     if (styleEl) {
       await styleEl
-        .evaluate((el: any) => {
-          if (el && el.parentNode) el.parentNode.removeChild(el);
+        .evaluate((el: Element) => {
+          (el as HTMLElement).remove();
         })
         .catch(() => {});
     }
   }
 }
 
-const DBG = !!process.env.DEBUG_KINDLE;
+// eslint-disable-next-line no-process-env
+const DEBUG_KINDLE = process.env.DEBUG_KINDLE === '1';
+// eslint-disable-next-line no-process-env
+const LOG_FOOTER = process.env.LOG_FOOTER === '1';
+// eslint-disable-next-line no-process-env
+const SKIP_RESET_FLAG = process.env.SKIP_RESET === '1';
+const DBG = DEBUG_KINDLE;
 function dlog(...args: any[]) { if (DBG) console.warn(new Date().toISOString(), '-', ...args); }
 function short(v?: string | null) {
   if (!v) return String(v);
@@ -172,14 +196,14 @@ async function main() {
   })
   pageRef = await context.newPage(); const page = pageRef;
   if (DBG) {
-    page.on('console', (msg) => dlog('[browser]', msg.type(), msg.text()));
-    page.on('requestfailed', (req) => dlog('[requestfailed]', req.failure()?.errorText, req.url()));
+    page.on('console', (msg: ConsoleMessage) => dlog('[browser]', msg.type(), msg.text()));
+    page.on('requestfailed', (req: Request) => dlog('[requestfailed]', req.failure()?.errorText, req.url()));
   }
 
   let info: BookInfo | undefined
   let meta: BookMeta | undefined
 
-  page.on('response', async (response) => {
+  page.on('response', async (response: Response) => {
     try {
       const status = response.status()
       if (status !== 200) return
@@ -230,11 +254,11 @@ async function main() {
       if (code) {
         try {
           await completeOtpFlow(page, code);
-        } catch (err) {
+        } catch {
           // As a fallback, try clicking the known OTP submit directly (legacy selector)
           await page
             .locator('input[type="submit"][aria-labelledby="cvf-submit-otp-button-announce"]')
-            .click({ timeout: 5_000 })
+            .click({ timeout: 5000 })
             .catch(() => {});
         }
       }
@@ -287,7 +311,7 @@ async function main() {
     while (!clicked && Date.now() < deadline) {
       for (const cand of candidates) {
         if (await cand.isVisible().catch(() => false)) {
-          await cand.click({ timeout: 2_000 }).catch(() => {});
+          await cand.click({ timeout: 2000 }).catch(() => {});
           clicked = true;
           break;
         }
@@ -309,15 +333,15 @@ async function main() {
     // Change font to Amazon Ember (best-effort across UIs)
     const ember = scope.locator?.('#AmazonEmber, [data-font="Amazon Ember"], button:has-text("Amazon Ember")');
     if (ember) {
-      await ember.first().click({ timeout: 2_000 }).catch(() => {});
+      await ember.first().click({ timeout: 2000 }).catch(() => {});
     }
 
     // Change layout to single column (label text can vary)
     const singleColGroup = scope.locator?.('[role="radiogroup"][aria-label$=" columns"]');
     if (singleColGroup) {
-      await singleColGroup.filter({ hasText: /single column/i }).first().click({ timeout: 2_000 }).catch(() => {});
+      await singleColGroup.filter({ hasText: /single column/i }).first().click({ timeout: 2000 }).catch(() => {});
     } else {
-      await scope.getByRole?.('radio', { name: /single column/i } as any).click({ timeout: 2_000 }).catch(() => {});
+      await scope.getByRole?.('radio', { name: /single column/i } as any).click({ timeout: 2000 }).catch(() => {});
     }
 
     // Give the UI a moment to apply changes before we try to close it
@@ -333,10 +357,10 @@ async function main() {
     let closed = false;
     for (const c of closeSettings) {
       if (await c.isVisible().catch(() => false)) {
-        await c.click({ timeout: 2_000 }).catch(() => {});
+        await c.click({ timeout: 2000 }).catch(() => {});
         // Wait briefly to see if overlay disappears
         if (settingsOverlay && await settingsOverlay.first().isVisible().catch(() => false)) {
-          await settingsOverlay.first().waitFor({ state: 'hidden', timeout: 1_000 }).catch(() => {});
+          await settingsOverlay.first().waitFor({ state: 'hidden', timeout: 1000 }).catch(() => {});
         }
         closed = true;
         break;
@@ -344,7 +368,7 @@ async function main() {
     }
 
     // Fallback: force-close via Escape or clicking outside
-    const closeDeadline = Date.now() + 3_000;
+    const closeDeadline = Date.now() + 3000;
     while (settingsOverlay && await settingsOverlay.first().isVisible().catch(() => false) && Date.now() < closeDeadline) {
       await page.keyboard.press('Escape').catch(() => {});
       await delay(150);
@@ -357,7 +381,7 @@ async function main() {
         // Try toggling the Aa/settings button again
         for (const c of closeSettings) {
           if (await c.isVisible().catch(() => false)) {
-            await c.click({ timeout: 1_000 }).catch(() => {});
+            await c.click({ timeout: 1000 }).catch(() => {});
             break;
           }
         }
@@ -400,10 +424,10 @@ async function main() {
     while (!opened && Date.now() < deadline) {
       for (const cand of directCandidates) {
         if (await cand.isVisible().catch(() => false)) {
-          await cand.click({ timeout: 1_000 }).catch(() => {});
+          await cand.click({ timeout: 1000 }).catch(() => {});
           opened = true;
           // Wait for side menu / TOC panel to render (best-effort)
-          await page.locator('ion-menu, .side-menu, .toc, ion-list').first().waitFor({ state: 'visible', timeout: 2_000 }).catch(() => {});
+          await page.locator('ion-menu, .side-menu, .toc, ion-list').first().waitFor({ state: 'visible', timeout: 2000 }).catch(() => {});
           break;
         }
       }
@@ -419,7 +443,7 @@ async function main() {
       // Open the menu if present
       const menuBtn = scope.locator?.('ion-button[title="Reader menu"], button[title="Reader menu"], [aria-label="Reader menu"]');
       if (menuBtn && await menuBtn.first().isVisible().catch(() => false)) {
-        await menuBtn.first().click({ timeout: 2_000 }).catch(() => {});
+        await menuBtn.first().click({ timeout: 2000 }).catch(() => {});
         await delay(400);
       }
 
@@ -431,9 +455,9 @@ async function main() {
 
       for (const item of menuItems) {
         if (await item.isVisible().catch(() => false)) {
-          await item.click({ timeout: 2_000 }).catch(() => {});
+          await item.click({ timeout: 2000 }).catch(() => {});
           opened = true;
-          await page.locator('ion-menu, .side-menu, .toc, ion-list').first().waitFor({ state: 'visible', timeout: 2_000 }).catch(() => {});
+          await page.locator('ion-menu, .side-menu, .toc, ion-list').first().waitFor({ state: 'visible', timeout: 2000 }).catch(() => {});
           break;
         }
       }
@@ -449,59 +473,177 @@ async function main() {
 
   // Global flag: if the footer shows only "Location", disable large "Go to Page" jumps.
   let LOCATION_MODE = false;
+  let tocSamples: Array<TocItem> = [];
   async function goToPage(pageNumber: number) {
     // Dismiss any overlays first
     await page.keyboard.press('Escape').catch(() => {});
     await delay(100);
 
     // LOCATION_MODE: Kindle often lacks a reliable "Go to Page" flow when only Locations are shown.
-    // In this mode we support advancing by a single step using in-page interactions only.
+    // Use TOC jumps plus incremental navigation to reach the requested location.
     if (LOCATION_MODE) {
-      const nav0 = await getPageNav(false).catch(() => undefined as any);
-      if (!nav0?.page) return;                // normalized: page === location
-      if (pageNumber === nav0.page) return;
-      if (Math.abs(pageNumber - nav0.page) !== 1) {
-        throw new Error(`LOCATION_MODE: refusing to jump ${Math.abs(pageNumber - nav0.page)} steps; only +/-1 is supported.`);
-      }
-      // Focus the image so keys go to the reader
-      const img = page.locator(SEL.mainImg);
-      const box = await img.boundingBox().catch(() => null);
-      if (box) {
-        await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5).catch(() => {});
-        await delay(150);
-      }
-      const startSrc = await img.getAttribute('src').catch(() => undefined);
-      // Try chevron
-      const rightChevron = page.locator(SEL.chevronRight);
-      if (await rightChevron.isVisible().catch(() => false)) {
-        await rightChevron.click({ timeout: 800 }).catch(() => {});
-      } else {
-        // Try keyboard
-        for (const key of ['ArrowRight', 'PageDown', 'Space']) {
-          await page.keyboard.press(key).catch(() => {});
-          await delay(180);
-          const srcNow = await img.getAttribute('src').catch(() => startSrc);
-          if (srcNow && srcNow !== startSrc) return;
-        }
-        // Try right-side click
+      const navInitial = await getPageNav(false).catch(() => undefined as PageNav | undefined);
+      if (!navInitial?.page) return;
+      if (pageNumber === navInitial.page) return;
+
+      const stepOnce = async (
+        direction: 'forward' | 'backward',
+        baseline: PageNav
+      ): Promise<PageNav | undefined> => {
+        const img = page.locator(SEL.mainImg);
+        const box = await img.boundingBox().catch(() => null);
         if (box) {
-          await page.mouse.click(box.x + box.width * 0.85, box.y + box.height * 0.5).catch(() => {});
+          await page.mouse
+            .click(box.x + box.width * 0.5, box.y + box.height * 0.5)
+            .catch(() => {});
+          await delay(150);
         }
+        const startSrc = await img.getAttribute('src').catch(() => null);
+        const chevronSel = direction === 'forward' ? SEL.chevronRight : SEL.chevronLeft;
+        const chevron = page.locator(chevronSel);
+
+        if (await chevron.isVisible().catch(() => false)) {
+          await chevron.click({ timeout: 800 }).catch(() => {});
+        } else {
+          const keySequences =
+            direction === 'forward'
+              ? ['ArrowRight', 'PageDown', 'Space']
+              : ['ArrowLeft', 'PageUp', 'Backspace'];
+          for (const key of keySequences) {
+            await page.keyboard.press(key).catch(() => {});
+            await delay(180);
+            const srcNow = await img.getAttribute('src').catch(() => null);
+            if (startSrc && srcNow && srcNow !== startSrc) break;
+          }
+          if (box) {
+            const ratio = direction === 'forward' ? 0.85 : 0.15;
+            await page.mouse
+              .click(box.x + box.width * ratio, box.y + box.height * 0.5)
+              .catch(() => {});
+          }
+        }
+
+        const deadline = Date.now() + 1800;
+        let latest: PageNav | undefined = baseline;
+        while (Date.now() < deadline) {
+          let navNow: PageNav | undefined;
+          try {
+            navNow = await getPageNav(false);
+          } catch {
+            navNow = undefined;
+          }
+          if (navNow?.page !== undefined && navNow.page !== baseline.page) {
+            latest = navNow;
+            break;
+          }
+          const srcNow = await img.getAttribute('src').catch(() => null);
+          if (startSrc && srcNow && srcNow !== startSrc) {
+            try {
+              latest = await getPageNav(false);
+            } catch {
+              // keep latest as is
+            }
+            break;
+          }
+          await delay(140);
+        }
+        return latest;
+      };
+
+      const attemptTocJump = async (
+        direction: 'forward' | 'backward',
+        currentNav: PageNav,
+        target: number
+      ): Promise<PageNav | undefined> => {
+        if (!tocSamples.length) return undefined;
+        const candidates = tocSamples.filter((item) => item.page !== undefined && item.locator);
+        if (!candidates.length) return undefined;
+
+        const filtered = candidates.filter((item) => {
+          if (item.page === undefined) return false;
+          if (currentNav.page === undefined) return false;
+          return direction === 'forward'
+            ? item.page > currentNav.page
+            : item.page < currentNav.page;
+        });
+        if (!filtered.length) return undefined;
+
+        let bestMatch: { item: TocItem; diff: number } | undefined;
+        for (const item of filtered) {
+          const diff = Math.abs((item.page ?? target) - target);
+          if (!bestMatch || diff < bestMatch.diff) {
+            bestMatch = { item, diff };
+          }
+        }
+        if (!bestMatch?.item.locator) return undefined;
+
+        await openTableOfContents();
+        await bestMatch.item.locator.scrollIntoViewIfNeeded().catch(() => {});
+        await bestMatch.item.locator.waitFor({ state: 'visible', timeout: 2000 }).catch(() => {});
+        await bestMatch.item.locator.click({ timeout: 2000 }).catch(() => {});
+        await delay(400);
+
+        const closeBtn = page.locator('.side-menu-close-button');
+        if (await closeBtn.isVisible().catch(() => false)) {
+          await closeBtn.click({ timeout: 1000 }).catch(() => {});
+          await delay(180);
+        } else {
+          await page.keyboard.press('Escape').catch(() => {});
+          await delay(150);
+        }
+
+        const navAfter = await getPageNav(false).catch(() => undefined as PageNav | undefined);
+        if (
+          navAfter?.page !== undefined &&
+          currentNav.page !== undefined &&
+          Math.abs(navAfter.page - target) < Math.abs(currentNav.page - target)
+        ) {
+          return navAfter;
+        }
+        return navAfter;
+      };
+
+      let currentNav: PageNav | undefined = navInitial;
+      let iterations = 0;
+      let tocAttempts = 0;
+      const maxIterations = 6000;
+
+      while (currentNav?.page !== pageNumber && iterations < maxIterations) {
+        if (!currentNav?.page) break;
+        const delta = pageNumber - currentNav.page;
+        if (!delta) break;
+        const direction = delta > 0 ? 'forward' : 'backward';
+        const absDelta = Math.abs(delta);
+
+        if (absDelta > 50 && tocAttempts < 5) {
+          const jumped = await attemptTocJump(direction, currentNav, pageNumber);
+          tocAttempts++;
+          if (jumped?.page !== undefined && jumped.page !== currentNav.page) {
+            currentNav = jumped;
+            continue;
+          }
+        }
+
+        const stepped = await stepOnce(direction, currentNav);
+        if (!stepped?.page || stepped.page === currentNav.page) {
+          throw new Error(
+            `LOCATION_MODE: unable to step ${direction} toward ${pageNumber}; last page ${currentNav.page}`
+          );
+        }
+        currentNav = stepped;
+        iterations++;
       }
-      // Wait briefly for footer/src change
-      const until = Date.now() + 1500;
-      while (Date.now() < until) {
-        const nav1 = await getPageNav(false).catch(() => nav0);
-        if (nav1?.page && nav1.page !== nav0.page) return;
-        const srcNow = await img.getAttribute('src').catch(() => startSrc);
-        if (srcNow && srcNow !== startSrc) return;
-        await delay(120);
+
+      if (currentNav?.page !== pageNumber) {
+        throw new Error(
+          `LOCATION_MODE: failed to reach location ${pageNumber}; last seen ${currentNav?.page ?? 'unknown'}`
+        );
       }
-      throw new Error('LOCATION_MODE: step advance failed');
+      return;
     }
 
     // If we are already on the requested page, short-circuit
-    let current = await getPageNav(false).catch(() => undefined as any);
+    const current = await getPageNav(false).catch(() => undefined as any);
     if (current?.page === pageNumber) {
       return;
     }
@@ -541,10 +683,10 @@ async function main() {
     while (!menuOpened && Date.now() < openDeadline) {
       for (const cand of menuCandidates) {
         if (await cand.isVisible().catch(() => false)) {
-          await cand.click({ timeout: 1_000 }).catch(() => {});
+          await cand.click({ timeout: 1000 }).catch(() => {});
           // Wait for the menu list to show up
           const menuList = scope.locator?.('ion-list, [role="menu"], .menu-content');
-          await menuList?.first().waitFor({ state: 'visible', timeout: 1_000 }).catch(() => {});
+          await menuList?.first().waitFor({ state: 'visible', timeout: 1000 }).catch(() => {});
           // Heuristic: if "Go to Page" is visible, we consider the menu opened
           const gotoItem = scope.locator?.('ion-item[role="listitem"]:has-text("Go to Page"), [role="menuitem"]:has-text("Go to Page")');
           if (gotoItem && await gotoItem.first().isVisible().catch(() => false)) {
@@ -569,23 +711,23 @@ async function main() {
       await page.screenshot({ path: 'goto-item-missing.png', fullPage: true }).catch(() => {});
       throw new Error('"Go to Page" menu item not found. Saved screenshot: goto-item-missing.png');
     }
-    await gotoItem.first().click({ timeout: 2_000 }).catch(() => {});
+    await gotoItem.first().click({ timeout: 2000 }).catch(() => {});
 
     // Wait for the modal and fill the page number
     const modal = scope.locator?.('ion-modal, [role="dialog"]');
-    await modal?.first().waitFor({ state: 'visible', timeout: 3_000 }).catch(() => {});
+    await modal?.first().waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
 
     const inputBox = scope.locator?.('ion-modal input[placeholder="page number"], ion-modal input[type="text"], [role="dialog"] input');
     if (!inputBox) {
       await page.screenshot({ path: 'goto-input-missing.png', fullPage: true }).catch(() => {});
       throw new Error('Go to Page input not found. Saved screenshot: goto-input-missing.png');
     }
-    await inputBox.first().fill(String(pageNumber), { timeout: 2_000 }).catch(() => {});
+    await inputBox.first().fill(String(pageNumber), { timeout: 2000 }).catch(() => {});
 
     // Click Go / submit or press Enter
     const goBtn = scope.locator?.('ion-modal ion-button[item-i-d="go-to-modal-go-button"], ion-modal button:has-text("Go")');
     if (goBtn && await goBtn.first().isVisible().catch(() => false)) {
-      await goBtn.first().click({ timeout: 2_000 }).catch(() => {});
+      await goBtn.first().click({ timeout: 2000 }).catch(() => {});
     } else {
       await inputBox.first().press('Enter').catch(() => {});
     }
@@ -608,7 +750,7 @@ async function main() {
 
       const clickChevron = async (dir: 'left' | 'right') => {
         const selector = dir === 'left' ? SEL.chevronLeft : SEL.chevronRight;
-        await page.locator(selector).click({ timeout: 1_000 }).catch(() => {});
+        await page.locator(selector).click({ timeout: 1000 }).catch(() => {});
       };
 
       // Re-sample current page
@@ -620,12 +762,17 @@ async function main() {
         // Wait for image to change or page number to update
         const startWait = Date.now();
         while (Date.now() - startWait < 1200) {
-          const srcNow = await page.locator(SEL.mainImg).getAttribute('src').catch(() => lastSrc);
+          const srcCandidate = await page
+            .locator(SEL.mainImg)
+            .getAttribute('src')
+            .catch(() => null);
+          const srcNow = srcCandidate ?? lastSrc;
           if (srcNow && srcNow !== lastSrc) { lastSrc = srcNow; break; }
           await delay(100);
         }
         await delay(100);
-        nav = await getPageNav(false).catch(() => nav);
+        const refreshedNav = await getPageNav(false).catch(() => undefined as PageNav | undefined);
+        nav = refreshedNav ?? nav;
         steps++;
       }
 
@@ -644,19 +791,19 @@ async function main() {
           scope2.locator?.('[aria-label="Menu"], [data-testid="reader-menu"], ion-button:has(ion-icon[name="menu"])'),
         ].filter(Boolean) as Locator[];
         for (const c of reOpenMenu) {
-          if (await c.isVisible().catch(() => false)) { await c.click({ timeout: 1_000 }).catch(() => {}); break; }
+          if (await c.isVisible().catch(() => false)) { await c.click({ timeout: 1000 }).catch(() => {}); break; }
         }
         const gotoItem2 = scope2.locator?.('ion-item[role="listitem"]:has-text("Go to Page"), [role="menuitem"]:has-text("Go to Page")');
         if (gotoItem2 && await gotoItem2.first().isVisible().catch(() => false)) {
-          await gotoItem2.first().click({ timeout: 1_000 }).catch(() => {});
+          await gotoItem2.first().click({ timeout: 1000 }).catch(() => {});
           const modal2 = scope2.locator?.('ion-modal, [role="dialog"]');
-          await modal2?.first().waitFor({ state: 'visible', timeout: 2_000 }).catch(() => {});
+          await modal2?.first().waitFor({ state: 'visible', timeout: 2000 }).catch(() => {});
           const input2 = scope2.locator?.('ion-modal input[placeholder="page number"], [role="dialog"] input');
           if (input2) {
             await input2.first().fill(String(pageNumber)).catch(() => {});
             const goBtn2 = scope2.locator?.('ion-modal ion-button[item-i-d="go-to-modal-go-button"], ion-modal button:has-text("Go")');
             if (goBtn2 && await goBtn2.first().isVisible().catch(() => false)) {
-              await goBtn2.first().click({ timeout: 1_000 }).catch(() => {});
+              await goBtn2.first().click({ timeout: 1000 }).catch(() => {});
             } else {
               await input2.first().press('Enter').catch(() => {});
             }
@@ -666,7 +813,8 @@ async function main() {
         // Final wait for footer state
         const finalWaitDeadline = Date.now() + TIME.finalWait;
         while (Date.now() < finalWaitDeadline) {
-          nav = await getPageNav(false).catch(() => nav);
+          const finalNav = await getPageNav(false).catch(() => undefined as PageNav | undefined);
+          nav = finalNav ?? nav;
           if (nav?.page === pageNumber) break;
           await delay(150);
         }
@@ -686,7 +834,7 @@ async function main() {
     }
   }
 
-  async function getPageNav(log: boolean = process.env.LOG_FOOTER === '1') {
+  async function getPageNav(log: boolean = LOG_FOOTER): Promise<PageNav | undefined> {
     const footerText = await page
       .locator(SEL.footerTitle)
       .first()
@@ -697,7 +845,7 @@ async function main() {
 
     // Normalize: if the footer only shows "Location N of M", treat that as pages for downstream logic
     if (parsed && parsed.page === undefined && parsed.location !== undefined) {
-      return { page: parsed.location, location: parsed.location, total: parsed.total };
+      return { page: parsed.location, location: parsed.location, total: parsed.total } as PageNav;
     }
     return parsed;
   }
@@ -733,22 +881,25 @@ async function main() {
   await openTableOfContents()
 
   const $tocItems = await page.locator(SEL.tocItems).all()
-  const tocItems: Array<TocItem> = []
+  tocSamples = []
 
   console.warn(`initializing ${$tocItems.length} TOC items...`)
   for (const tocItem of $tocItems) {
     await tocItem.scrollIntoViewIfNeeded()
 
-    const title = await tocItem.textContent()
-    assert(title)
+    const rawTitle = (await tocItem.textContent())?.trim()
+    assert(rawTitle)
+    const title = rawTitle as string
 
     await tocItem.click()
     await delay(250)
 
     const pageNav = await getPageNav(false)
-    assert(pageNav)
+    if (!pageNav) {
+      throw new Error('Failed to read page navigation while collecting TOC items')
+    }
 
-    tocItems.push({
+    tocSamples.push({
       title,
       ...pageNav,
       locator: tocItem
@@ -765,20 +916,18 @@ async function main() {
     }
   }
 
-  const parsedToc = parseTocItems(tocItems)
-  const toc: TocItem[] = tocItems.map(({ locator: _, ...tocItem }) => tocItem)
+  const parsedToc = parseTocItems(tocSamples)
+  const toc: TocItem[] = tocSamples.map(({ locator: _, ...tocItem }) => tocItem)
 
-  const total = parsedToc.firstPageTocItem.total
+  const { firstPageTocItem, afterLastPageTocItem } = parsedToc
+  assert(firstPageTocItem, 'Unable to find first valid page in TOC (post-parse)')
+  const total = firstPageTocItem!.total
   const pagePadding = `${total * 2}`.length
-  await parsedToc.firstPageTocItem.locator!.scrollIntoViewIfNeeded()
-  await parsedToc.firstPageTocItem.locator!.click()
+  await firstPageTocItem!.locator!.scrollIntoViewIfNeeded()
+  await firstPageTocItem!.locator!.click()
 
-  const totalContentPages = Math.min(
-    parsedToc.afterLastPageTocItem?.page
-      ? parsedToc.afterLastPageTocItem!.page
-      : total,
-    total
-  )
+  const limitCandidate = afterLastPageTocItem?.page ?? total
+  const totalContentPages = Math.min(limitCandidate, total)
   assert(totalContentPages > 0, 'No content pages found')
 
   // Detect a UI state where there's no visible next chevron and no readable footer
@@ -852,15 +1001,16 @@ async function main() {
 
   const pages: Array<PageChunk> = []
   // Persistent progress trackers across iterations
-  let __lastCapturedPage: number | undefined = undefined;
-  let __stagnantCount = 0;
-  let __iterations = 0;
+  let lastCapturedPage: number | undefined;
+  let stagnantCount = 0;
+  let iterations = 0;
   console.warn(
     `reading ${totalContentPages} pages${total > totalContentPages ? ` (of ${total} total pages stopping at "${parsedToc.afterLastPageTocItem!.title}")` : ''}...`
   )
 
-  let __reachedEnd = false;
-  while (!__reachedEnd) {
+  let reachedEnd = false;
+  // eslint-disable-next-line no-loop-func
+  while (!reachedEnd) {
     const pageNav = await getPageNav(false)
     if (pageNav?.page === undefined) {
       break
@@ -885,7 +1035,7 @@ async function main() {
         // Re-sample nav and src after attempting to advance
         await delay(200);
         const reNav = await getPageNav(false).catch(() => pageNav);
-        const reSrc = await page.locator(SEL.mainImg).getAttribute('src').catch(() => src);
+        // Removed unused variable reSrc
         if (reNav?.page !== pageNav.page) {
           // We advanced; update locals and continue to next iteration to capture the new page cleanly
           continue;
@@ -894,18 +1044,11 @@ async function main() {
     }
 
     // Temporarily hide reader chrome for a clean capture
-    const b = await withCleanCapture(page, () =>
-      page.locator(SEL.mainImg).screenshot({ type: 'png', scale: 'css' })
-    );
+    const b: Buffer = await captureMainImageBuffer(page);
 
     // Log effective render size of the main image (helps confirm print-quality)
     try {
-      const dims = await page.locator(SEL.mainImg).evaluate((img: HTMLImageElement) => ({
-        naturalWidth: img.naturalWidth || 0,
-        naturalHeight: img.naturalHeight || 0,
-        cssWidth: img.width || (img as any).clientWidth || 0,
-        cssHeight: img.height || (img as any).clientHeight || 0,
-      }))
+      const dims = await page.locator(SEL.mainImg).evaluate(getImageDims as any);
       dlog('dims', dims)
     } catch {}
 
@@ -927,25 +1070,25 @@ async function main() {
     dlog('captured', pages.at(-1))
 
     // Track progress across iterations; if page number doesn't change, count it
-    if (__lastCapturedPage === pageNav.page) {
-      __stagnantCount++;
+    if (lastCapturedPage === pageNav.page) {
+      stagnantCount++;
     } else {
-      __stagnantCount = 0;
-      __lastCapturedPage = pageNav.page;
+      stagnantCount = 0;
+      lastCapturedPage = pageNav.page;
     }
 
     // If we've been stagnant for several iterations, stop to avoid hanging
-    if (__stagnantCount >= 2) {
+    if (stagnantCount >= 2) {
       console.warn('no progress after multiple iterations; assuming end and exiting');
-      __reachedEnd = true;
+      reachedEnd = true;
       break;
     }
 
     // Global safety: hard iteration cap to prevent infinite loops
-    __iterations++;
-    if (__iterations > totalContentPages * 2) {
+    iterations++;
+    if (iterations > totalContentPages * 2) {
       console.warn('iteration cap reached; exiting to prevent hang');
-      __reachedEnd = true;
+      reachedEnd = true;
       break;
     }
 
@@ -959,9 +1102,7 @@ async function main() {
     if (await isEndState()) {
       await delay(200);
 
-      const b2 = await withCleanCapture(page, () =>
-        page.locator(SEL.mainImg).screenshot({ type: 'png', scale: 'css' })
-      );
+      const b2: Buffer = await captureMainImageBuffer(page);
 
       const finalIndex = pages.length;
       // We may not have a footer page number here; best-effort label as current+1 (capped at total)
@@ -976,7 +1117,7 @@ async function main() {
       pages.push({ index: finalIndex, page: labeledPage, total: pageNav.total, screenshot: finalPath });
 
       console.warn('final end-of-book capture taken; exiting');
-      __reachedEnd = true;
+      reachedEnd = true;
       break;
     }
     // Near-end guard: on penultimate page and no next chevron -> exit cleanly
@@ -986,14 +1127,14 @@ async function main() {
       if (!chevronVisible && pageNav.page >= Math.max(1, pageNav.total - 1)) {
         dlog('near-end guard triggered: page', pageNav.page, 'of', pageNav.total, 'no chevron');
         console.warn('penultimate page with no next control; exiting');
-        __reachedEnd = true;
+        reachedEnd = true;
         break;
       }
     } catch {}
 
     if (pageNav.page >= totalContentPages) {
       // We've just captured the final page; stop before attempting navigation
-      __reachedEnd = true;
+      reachedEnd = true;
       break
     }
 
@@ -1034,17 +1175,23 @@ async function main() {
       // Wait for the image to change or the footer to update
       const startWait = Date.now();
       while (Date.now() - startWait < 1500) {
-        const srcNow = await page.locator(SEL.mainImg).getAttribute('src').catch(() => lastSrc);
+        const srcCandidate = await page
+          .locator(SEL.mainImg)
+          .getAttribute('src')
+          .catch(() => null);
+        const srcNow = srcCandidate ?? lastSrc;
         if (srcNow && srcNow !== lastSrc) { lastSrc = srcNow; break; }
-        const navNow = await getPageNav(false).catch(() => pageNav);
-        if (navNow?.page && navNow.page !== pageNav.page) {
+        const navNow = await getPageNav(false).catch(() => undefined as PageNav | undefined);
+        const navCurrent = navNow ?? pageNav;
+        if (navCurrent?.page && navCurrent.page !== pageNav.page) {
           break;
         }
         await delay(120);
       }
 
-      const navNow = await getPageNav(false).catch(() => pageNav);
-      if (navNow?.page && navNow.page !== pageNav.page) {
+      const navNow = await getPageNav(false).catch(() => undefined as PageNav | undefined);
+      const navResolved = navNow ?? pageNav;
+      if (navResolved?.page && navResolved.page !== pageNav.page) {
         break; // advanced successfully
       }
 
@@ -1059,15 +1206,15 @@ async function main() {
     if (retries >= maxRetries) {
       dlog('navigation retries exhausted');
       console.warn('navigation retries exhausted; exiting at current page');
-      __reachedEnd = true;
+      reachedEnd = true;
     }
 
     // Final guard: if we did not advance (footer page unchanged), assume end and exit outer loop
-    const navAfter = await getPageNav(false).catch(() => pageNav);
-    const afterPage: number | undefined = navAfter?.page;
+    const navAfter = await getPageNav(false).catch(() => undefined as PageNav | undefined);
+    const afterPage: number | undefined = (navAfter ?? pageNav)?.page;
     dlog('final guard: afterPage', afterPage, 'current', pageNav.page, 'totalCap', totalContentPages);
     if (afterPage === undefined || afterPage === pageNav.page || afterPage >= totalContentPages) {
-      __reachedEnd = true;
+      reachedEnd = true;
     }
   }
 
@@ -1081,9 +1228,7 @@ async function main() {
 
   if (initialPageNav?.page !== undefined) {
     const endedOn = pages.at(-1)?.page;
-    const SKIP_RESET = process.env.SKIP_RESET === '1' || DBG;
-
-    if (SKIP_RESET) {
+    if (SKIP_RESET_FLAG || DBG) {
       console.warn(`skip reset enabled — leaving reader at page ${endedOn ?? 'unknown'}`);
     } else if (endedOn === initialPageNav.page) {
       console.warn(`already on initial page ${initialPageNav.page}; skipping reset`);

@@ -11,6 +11,7 @@ import type { ContentChunk } from './types'
 import { assert, getEnv } from './utils'
 
 const INDEX_PAGE_RE = /(\d+)-(\d+)\.png$/;
+const PAGE_NUMBER_LINE_RE = /^\s*\d+\s*$/;
 
 function isChunk(v: unknown): v is ContentChunk {
   return !!v && typeof (v as any).text === 'string' && typeof (v as any).page === 'number';
@@ -26,17 +27,18 @@ function jitter(ms: number, pct = 0.25) {
 }
 
 function normalizeOcrText(raw: string): string {
-  return raw
-    // drop leading/trailing lines that are just page numbers
-    .replace(/^(?:\s*\d+\s*$\n?)+/m, '')
-    .replace(/(?:\n?\s*\d+\s*$)+$/m, '')
-    // normalize whitespace
-    .replace(/[\t\f\r]+/g, ' ')
-    .replace(/\s+\n/g, '\n')
-    // trim doc and each line
-    .replace(/^\s+|\s+$/g, '')
-    .replace(/^\s*/gm, '')
-    .replace(/\s*$/gm, '');
+  const sanitized = raw.replaceAll(/[\t\f\r]+/g, ' ');
+  const lines = sanitized.split('\n');
+
+  while (lines.length && PAGE_NUMBER_LINE_RE.test(lines[0] ?? '')) {
+    lines.shift();
+  }
+  while (lines.length && PAGE_NUMBER_LINE_RE.test(lines.at(-1) ?? '')) {
+    lines.pop();
+  }
+
+  const normalized = lines.map((line) => line.trim());
+  return normalized.join('\n').trim();
 }
 
 function parseIndexPage(filePath: string): { index: number; page: number } {
@@ -54,10 +56,6 @@ function sortScreenshots(paths: string[]): string[] {
     const B = parseIndexPage(b);
     return A.index - B.index || A.page - B.page;
   });
-}
-
-async function backoff(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
 }
 
 async function main() {
@@ -125,7 +123,7 @@ async function main() {
           } catch (err: any) {
             // handle rate limits / transient failures with backoff
             const msg = String(err?.message || err);
-            if (/429|rate limit|ETIMEDOUT|ECONNRESET|5\d\d/i.test(msg) && attempt < maxRetries) {
+            if (/429|rate limit|etimedout|econnreset|5\d\d/i.test(msg) && attempt < maxRetries) {
               attempt++;
               const wait = Math.min(90_000, 750 * 2 ** attempt);
               console.warn(`retry ${attempt}/${maxRetries} for ${screenshot} after error:`, msg);
