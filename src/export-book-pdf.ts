@@ -101,9 +101,9 @@ async function main() {
   }
 
   doc.end()
-  await new Promise((resolve, reject) => {
-    stream.on('finish', resolve)
-    stream.on('error', reject)
+  await new Promise<void>((resolve, reject) => {
+    stream.on('finish', () => resolve())
+    stream.on('error', (error) => reject(error))
   })
 }
 
