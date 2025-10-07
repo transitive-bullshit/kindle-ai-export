@@ -10,52 +10,59 @@ import pMap from 'p-map'
 import type { ContentChunk } from './types'
 import { assert, getEnv } from './utils'
 
-const INDEX_PAGE_RE = /(\d+)-(\d+)\.png$/;
-const PAGE_NUMBER_LINE_RE = /^\s*\d+\s*$/;
+const INDEX_PAGE_RE = /(\d+)-(\d+)\.png$/
+const PAGE_NUMBER_LINE_RE = /^\s*\d+\s*$/
 
 function isChunk(v: unknown): v is ContentChunk {
-  return !!v && typeof (v as any).text === 'string' && typeof (v as any).page === 'number';
+  return (
+    !!v &&
+    typeof (v as any).text === 'string' &&
+    typeof (v as any).page === 'number'
+  )
 }
 
 function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
+  return new Promise((r) => setTimeout(r, ms))
 }
 
 function jitter(ms: number, pct = 0.25) {
-  const d = ms * pct;
-  return Math.max(0, ms - d + Math.random() * (2 * d));
+  const d = ms * pct
+  return Math.max(0, ms - d + Math.random() * (2 * d))
 }
 
 function normalizeOcrText(raw: string): string {
-  const sanitized = raw.replaceAll(/[\t\f\r]+/g, ' ');
-  const lines = sanitized.split('\n');
+  const sanitized = raw.replaceAll(/[\t\f\r]+/g, ' ')
+  const lines = sanitized.split('\n')
 
   while (lines.length && PAGE_NUMBER_LINE_RE.test(lines[0] ?? '')) {
-    lines.shift();
+    lines.shift()
   }
   while (lines.length && PAGE_NUMBER_LINE_RE.test(lines.at(-1) ?? '')) {
-    lines.pop();
+    lines.pop()
   }
 
-  const normalized = lines.map((line) => line.trim());
-  return normalized.join('\n').trim();
+  const normalized = lines.map((line) => line.trim())
+  return normalized.join('\n').trim()
 }
 
 function parseIndexPage(filePath: string): { index: number; page: number } {
-  const m = filePath.match(INDEX_PAGE_RE);
-  assert(m?.[1] && m?.[2], `invalid screenshot filename: ${filePath}`);
-  const index = Number.parseInt(m[1]!, 10);
-  const page = Number.parseInt(m[2]!, 10);
-  assert(!Number.isNaN(index) && !Number.isNaN(page), `invalid screenshot filename: ${filePath}`);
-  return { index, page };
+  const m = filePath.match(INDEX_PAGE_RE)
+  assert(m?.[1] && m?.[2], `invalid screenshot filename: ${filePath}`)
+  const index = Number.parseInt(m[1]!, 10)
+  const page = Number.parseInt(m[2]!, 10)
+  assert(
+    !Number.isNaN(index) && !Number.isNaN(page),
+    `invalid screenshot filename: ${filePath}`
+  )
+  return { index, page }
 }
 
 function sortScreenshots(paths: string[]): string[] {
   return paths.slice().sort((a, b) => {
-    const A = parseIndexPage(a);
-    const B = parseIndexPage(b);
-    return A.index - B.index || A.page - B.page;
-  });
+    const A = parseIndexPage(a)
+    const B = parseIndexPage(b)
+    return A.index - B.index || A.page - B.page
+  })
 }
 
 async function main() {
@@ -64,7 +71,9 @@ async function main() {
 
   const outDir = path.join('out', asin)
   const pageScreenshotsDir = path.join(outDir, 'pages')
-  const pageScreenshots = sortScreenshots(await globby(`${pageScreenshotsDir}/*.png`))
+  const pageScreenshots = sortScreenshots(
+    await globby(`${pageScreenshotsDir}/*.png`)
+  )
   assert(pageScreenshots.length, 'no page screenshots found')
 
   const openai = new OpenAIClient()
@@ -75,10 +84,10 @@ async function main() {
       async (screenshot) => {
         const screenshotBuffer = await fs.readFile(screenshot)
         const screenshotBase64 = `data:image/png;base64,${screenshotBuffer.toString('base64')}`
-        const { index, page } = parseIndexPage(screenshot);
+        const { index, page } = parseIndexPage(screenshot)
 
-        const maxRetries = 8;
-        let attempt = 0;
+        const maxRetries = 8
+        let attempt = 0
         while (true) {
           try {
             const res = await openai.createChatCompletion({
@@ -103,35 +112,47 @@ async function main() {
                   ] as any
                 }
               ]
-            });
+            })
 
-            const rawText = res.choices[0]?.message.content ?? '';
-            const text = normalizeOcrText(rawText);
+            const rawText = res.choices[0]?.message.content ?? ''
+            const text = normalizeOcrText(rawText)
 
-            if (!text || (text.length < 100 && /i'm sorry|cannot|copyright/i.test(text))) {
-              attempt++;
+            if (
+              !text ||
+              (text.length < 100 && /i'm sorry|cannot|copyright/i.test(text))
+            ) {
+              attempt++
               if (attempt >= maxRetries) {
-                throw new Error(`OCR refusal/empty after ${attempt} attempts`);
+                throw new Error(`OCR refusal/empty after ${attempt} attempts`)
               }
-              await sleep(jitter(Math.min(60_000, 500 * 2 ** attempt)));
-              continue;
+              await sleep(jitter(Math.min(60_000, 500 * 2 ** attempt)))
+              continue
             }
 
-            const result: ContentChunk = { index, page, text, screenshot };
-            console.log(result);
-            return result;
+            const result: ContentChunk = { index, page, text, screenshot }
+            console.log(result)
+            return result
           } catch (err: any) {
             // handle rate limits / transient failures with backoff
-            const msg = String(err?.message || err);
-            if (/429|rate limit|etimedout|econnreset|5\d\d/i.test(msg) && attempt < maxRetries) {
-              attempt++;
-              const wait = Math.min(90_000, 750 * 2 ** attempt);
-              console.warn(`retry ${attempt}/${maxRetries} for ${screenshot} after error:`, msg);
-              await sleep(jitter(wait));
-              continue;
+            const msg = String(err?.message || err)
+            if (
+              /429|rate limit|etimedout|econnreset|5\d\d/i.test(msg) &&
+              attempt < maxRetries
+            ) {
+              attempt++
+              const wait = Math.min(90_000, 750 * 2 ** attempt)
+              console.warn(
+                `retry ${attempt}/${maxRetries} for ${screenshot} after error:`,
+                msg
+              )
+              await sleep(jitter(wait))
+              continue
             }
-            console.error(`error processing image ${index} (${screenshot})`, err);
-            return undefined; // allow type guard to drop this page
+            console.error(
+              `error processing image ${index} (${screenshot})`,
+              err
+            )
+            return undefined // allow type guard to drop this page
           }
         }
       },
@@ -140,22 +161,24 @@ async function main() {
   ).filter(isChunk)
 
   // Sanity: log any pages that failed so you can re-run selectively
-  const expected = pageScreenshots.length;
-  const received = content.length;
+  const expected = pageScreenshots.length
+  const received = content.length
   if (received !== expected) {
-    const got = new Set(content.map((c) => `${c.index}-${c.page}`));
+    const got = new Set(content.map((c) => `${c.index}-${c.page}`))
     const missing = pageScreenshots
       .map((p) => p.match(INDEX_PAGE_RE)!)
       .filter((m) => !got.has(`${Number(m[1])}-${Number(m[2])}`))
-      .map((m) => `${m[1]}-${m[2]}`);
-    console.warn(`WARNING: ${expected - received} page(s) missing`, { missing });
+      .map((m) => `${m[1]}-${m[2]}`)
+    console.warn(`WARNING: ${expected - received} page(s) missing`, { missing })
   }
 
   await fs.writeFile(
     path.join(outDir, 'content.json'),
     JSON.stringify(content, null, 2)
   )
-  console.log(`Wrote ${content.length} chunks to ${path.join(outDir, 'content.json')}`);
+  console.log(
+    `Wrote ${content.length} chunks to ${path.join(outDir, 'content.json')}`
+  )
 }
 
 await main()
