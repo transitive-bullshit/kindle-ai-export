@@ -5,7 +5,8 @@ import path from 'node:path'
 
 import { input } from '@inquirer/prompts'
 import delay from 'delay'
-import { chromium, type Locator } from 'playwright'
+// import { chromium, type Locator } from 'playwright'
+import { chromium, type Locator } from 'patchright'
 
 import type { BookInfo, BookMeta, BookMetadata, PageChunk } from './types'
 import {
@@ -34,6 +35,7 @@ async function main() {
   assert(asin, 'ASIN is required')
   assert(amazonEmail, 'AMAZON_EMAIL is required')
   assert(amazonPassword, 'AMAZON_PASSWORD is required')
+  const asinL = asin.toLowerCase()
 
   const outDir = path.join('out', asin)
   const userDataDir = path.join(outDir, 'data')
@@ -44,18 +46,31 @@ async function main() {
   const krRendererMainImageSelector = '#kr-renderer .kg-full-page-img img'
   const bookReaderUrl = `https://read.amazon.com/?asin=${asin}`
 
+  // const context = await chromium.launchPersistentContext(userDataDir, {
+  //   headless: false,
+  //   channel: 'chrome',
+  //   executablePath:
+  //     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  //   args: ['--hide-crash-restore-bubble'],
+  //   ignoreDefaultArgs: ['--enable-automation'],
+  //   deviceScaleFactor: 2,
+  //   viewport: { width: 1280, height: 720 }
+  // })
+
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     channel: 'chrome',
-    executablePath:
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    args: ['--hide-crash-restore-bubble'],
+    args: [
+      '--hide-crash-restore-bubble',
+      '--disable-features=PasswordAutosave',
+      '--disable-features=WebAuthn'
+    ],
     ignoreDefaultArgs: ['--enable-automation'],
     deviceScaleFactor: 2,
     viewport: { width: 1280, height: 720 }
   })
-  const page = await context.newPage()
 
+  const page = context.pages()[0] ?? (await context.newPage())
   let info: BookInfo | undefined
   let meta: BookMeta | undefined
 
@@ -68,7 +83,7 @@ async function main() {
       if (
         url.hostname === 'read.amazon.com' &&
         url.pathname === '/service/mobile/reader/startReading' &&
-        url.searchParams.get('asin')?.toLowerCase() === asin.toLowerCase()
+        url.searchParams.get('asin')?.toLowerCase() === asinL
       ) {
         const body: any = await response.json()
         delete body.karamelToken

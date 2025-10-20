@@ -45,7 +45,7 @@ async function main() {
 
           do {
             const res = await openai.createChatCompletion({
-              model: 'gpt-4o',
+              model: 'gpt-4.1-mini',
               temperature: retries < 2 ? 0 : 0.5,
               messages: [
                 {
