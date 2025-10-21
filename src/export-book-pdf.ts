@@ -84,7 +84,7 @@ async function main() {
     const text = chunks.map((chunk) => chunk.text).join(' ')
 
     ;(doc as any).outline.addItem(tocItem.label)
-    doc.fontSize(20)
+    doc.fontSize(tocItem.depth === 1 ? 16 : 20)
     doc.text(tocItem.label, { align: 'center', lineGap: 16 })
 
     doc.fontSize(fontSize)

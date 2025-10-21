@@ -41,7 +41,7 @@ async function main() {
 
   let output = `# ${title}
 
-By ${authors.join(', ')}
+> By ${authors.join(', ')}
 
 ---
 
@@ -53,7 +53,7 @@ ${metadata.toc
   )
   .map(
     (tocItem) =>
-      `- [${tocItem.label}](#${tocItem.label.toLowerCase().replaceAll(/[^\da-z]+/g, '-')})`
+      `${'  '.repeat(tocItem.depth)}- [${tocItem.label}](#${tocItem.label.toLowerCase().replaceAll(/[^\da-z]+/g, '-')})`
   )
   .join('\n')}
 
@@ -78,7 +78,7 @@ ${metadata.toc
 
     output += `
 
-## ${tocItem.label}
+${'#'.repeat(tocItem.depth + 2)} ${tocItem.label}
 
 ${text}`
 

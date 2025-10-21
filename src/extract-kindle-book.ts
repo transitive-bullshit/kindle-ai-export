@@ -325,6 +325,7 @@ async function main() {
 
     const numTocItems = await page.locator('ion-list ion-item').count()
     const $tocTopLevelItems = await page
+      // TODO: this is pretty brittle
       .locator('ion-list > div > ion-item')
       .all()
     const tocItems: Array<TocItem> = []
@@ -356,9 +357,11 @@ async function main() {
 
       const currentTocItem: TocItem = {
         label,
+        depth: 0,
         ...pageNav
       }
       tocItems.push(currentTocItem)
+      console.warn(currentTocItem)
 
       // if (pageNav.page !== undefined) {
       //   // TODO: this assumes the toc items are in order and contiguous...
@@ -372,7 +375,6 @@ async function main() {
         .all()
 
       if (subTocItems.length > 0) {
-        currentTocItem.entries = []
         console.warn(`${label}: found ${subTocItems.length} sub-TOC items...`)
 
         for (const $subTocItem of subTocItems) {
@@ -385,8 +387,9 @@ async function main() {
           const pageNav = await getPageNav()
           assert(pageNav)
 
-          currentTocItem.entries!.push({
+          tocItems.push({
             label,
+            depth: 1,
             ...pageNav
           })
 
@@ -396,8 +399,6 @@ async function main() {
           })
         }
       }
-
-      console.warn(currentTocItem)
     }
 
     result.toc = tocItems

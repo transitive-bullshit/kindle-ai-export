@@ -7,13 +7,62 @@ import timeFormat from 'hh-mm-ss'
 import { extract } from 'tar'
 import { temporaryDirectory } from 'tempy'
 
-export {
-  assert,
-  getEnv,
-  normalizeAuthors,
-  parseJsonpResponse
-} from 'kindle-api-ky'
+export function assert(
+  value: unknown,
+  message?: string | Error
+): asserts value {
+  if (value) {
+    return
+  }
 
+  if (!message) {
+    throw new Error('Assertion failed')
+  }
+
+  throw typeof message === 'string' ? new Error(message) : message
+}
+
+export function getEnv(name: string): string | undefined {
+  try {
+    return typeof process !== 'undefined'
+      ? // eslint-disable-next-line no-process-env
+        process.env?.[name]
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export function normalizeAuthors(rawAuthors: string[]): string[] {
+  if (!rawAuthors?.length) {
+    return []
+  }
+
+  const rawAuthor = rawAuthors[0]!
+
+  return Array.from(new Set(rawAuthor.split(':').filter(Boolean)), (authors) =>
+    authors
+      .split(',')
+      .map((elems) => elems.trim())
+      .toReversed()
+      .join(' ')
+  )
+}
+
+const JSONP_REGEX = /\(({.*})\)/
+
+export function parseJsonpResponse<T = unknown>(body: string): T | undefined {
+  const content = body?.match(JSONP_REGEX)?.[1]
+  if (!content) {
+    return
+  }
+
+  try {
+    return JSON.parse(content) as T
+  } catch {
+    return
+  }
+}
 const numerals = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 }
 
 export function deromanize(romanNumeral: string): number {

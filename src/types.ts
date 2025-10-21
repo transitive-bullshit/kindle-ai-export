@@ -30,8 +30,8 @@ export interface PageNav {
 export type TocItem = SimplifyDeep<
   PageNav & {
     label: string
-    tocPositionId?: number
-    entries?: Simplify<Omit<TocItem, 'entries'>>[]
+    // tocPositionId?: number
+    depth: number
   }
 >
 
