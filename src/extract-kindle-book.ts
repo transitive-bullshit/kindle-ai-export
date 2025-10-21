@@ -3,7 +3,6 @@ import 'dotenv/config'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import type { SetOptional } from 'type-fest'
 import { input } from '@inquirer/prompts'
 import delay from 'delay'
 import pRace from 'p-race'
@@ -11,7 +10,7 @@ import pRace from 'p-race'
 import { chromium } from 'patchright'
 import sharp from 'sharp'
 
-import type { $TocItem, BookMetadata } from './types'
+import type { BookMetadata, TocItem } from './types'
 import { parsePageNav, parseTocItems } from './playwright-utils'
 import { assert, getEnv, normalizeAuthors, parseJsonpResponse } from './utils'
 
@@ -31,6 +30,7 @@ async function main() {
   const asin = getEnv('ASIN')
   const amazonEmail = getEnv('AMAZON_EMAIL')
   const amazonPassword = getEnv('AMAZON_PASSWORD')
+  const force = !!getEnv('FORCE')
   assert(asin, 'ASIN is required')
   assert(amazonEmail, 'AMAZON_EMAIL is required')
   assert(amazonPassword, 'AMAZON_PASSWORD is required')
@@ -39,15 +39,27 @@ async function main() {
   const outDir = path.join('out', asin)
   const userDataDir = path.join(outDir, 'data')
   const pageScreenshotsDir = path.join(outDir, 'pages')
+  const metadataPath = path.join(outDir, 'metadata.json')
   await fs.mkdir(userDataDir, { recursive: true })
   await fs.mkdir(pageScreenshotsDir, { recursive: true })
 
   const krRendererMainImageSelector = '#kr-renderer .kg-full-page-img img'
   const bookReaderUrl = `https://read.amazon.com/?asin=${asin}`
 
-  const result: SetOptional<BookMetadata, 'info' | 'meta'> = {
+  const result: BookMetadata = {
+    meta: {} as any,
+    info: {} as any,
     toc: [],
     pages: []
+  }
+  let prevBookMetadata: Partial<BookMetadata> = {}
+
+  if (!force) {
+    try {
+      prevBookMetadata = JSON.parse(
+        await fs.readFile(metadataPath, 'utf8')
+      ) as Partial<BookMetadata>
+    } catch {}
   }
 
   const context = await chromium.launchPersistentContext(userDataDir, {
@@ -101,14 +113,26 @@ async function main() {
         const body = await response.text()
         const metadata = parseJsonpResponse<any>(body)
         if (metadata.asin !== asin) return
+
         delete metadata.cpr
         if (Array.isArray(metadata.authorsList)) {
           metadata.authorsList = normalizeAuthors(metadata.authorsList)
         }
-        if (!result.meta) {
-          console.warn('book meta', metadata)
+
+        if (!Object.keys(result.meta).length) {
+          if (
+            metadata.version &&
+            metadata.version === prevBookMetadata.meta?.version
+          ) {
+            if (!result.toc.length && prevBookMetadata.toc?.length) {
+              // Use previously extracted TOC
+              console.warn('using cached TOC', prevBookMetadata.toc)
+              result.toc = prevBookMetadata.toc
+            }
+          }
+
+          result.meta = metadata
         }
-        result.meta = metadata
       } else if (
         url.hostname === 'read.amazon.com' &&
         url.searchParams.get('asin')?.toLowerCase() === asinL
@@ -118,12 +142,12 @@ async function main() {
           delete body.karamelToken
           delete body.metadataUrl
           delete body.YJFormatVersion
-          if (!result.info) {
+          if (!Object.keys(result.info).length) {
             console.warn('book info', body)
           }
           result.info = body
         } else if (url.pathname === '/renderer/render') {
-          // TODO
+          // TODO: these TAR files have some useful metadata that we could use...
           // const body = await response.body()
           // const tempDir = await extractTarToTemp(body)
           // const toc = JSON.parse(
@@ -224,7 +248,7 @@ async function main() {
 
   async function updateSettings() {
     await page.locator('ion-button[aria-label="Reader settings"]').click()
-    await delay(1000)
+    await delay(500)
 
     // Change font to Amazon Ember
     // My hypothesis is that this font will be easier for OCR to transcribe...
@@ -239,7 +263,7 @@ async function main() {
       .click()
 
     await page.locator('ion-button[aria-label="Reader settings"]').click()
-    await delay(1000)
+    await delay(500)
   }
 
   async function goToPage(pageNumber: number) {
@@ -257,7 +281,7 @@ async function main() {
     await page
       .locator('ion-modal ion-button[item-i-d="go-to-modal-go-button"]')
       .click()
-    await delay(1000)
+    await delay(500)
   }
 
   async function getPageNav() {
@@ -283,10 +307,7 @@ async function main() {
   }
 
   async function writeResultMetadata() {
-    return fs.writeFile(
-      path.join(outDir, 'metadata.json'),
-      JSON.stringify(result, null, 2)
-    )
+    return fs.writeFile(metadataPath, JSON.stringify(result, null, 2))
   }
 
   await dismissPossibleAlert()
@@ -294,10 +315,10 @@ async function main() {
   await updateSettings()
 
   const initialPageNav = await getPageNav()
-  let totalPages = 5
-  let totalContentPages = 5
 
-  {
+  if (!force && result.toc.length) {
+    // Using a cached table of contents
+  } else {
     // Extract the table of contents
     await page.locator('ion-button[aria-label="Table of Contents"]').click()
     await delay(2000)
@@ -306,7 +327,7 @@ async function main() {
     const $tocTopLevelItems = await page
       .locator('ion-list > div > ion-item')
       .all()
-    const tocItems: Array<$TocItem> = []
+    const tocItems: Array<TocItem> = []
 
     console.warn(`initializing ${numTocItems} TOC items...`)
 
@@ -333,10 +354,9 @@ async function main() {
       const pageNav = await getPageNav()
       assert(pageNav)
 
-      const currentTocItem: $TocItem = {
+      const currentTocItem: TocItem = {
         label,
-        ...pageNav,
-        locator: $tocItem
+        ...pageNav
       }
       tocItems.push(currentTocItem)
 
@@ -377,29 +397,32 @@ async function main() {
         }
       }
 
-      const { locator: _, ...debugTocItem } = currentTocItem
-      console.warn(debugTocItem)
+      console.warn(currentTocItem)
     }
 
-    const parsedToc = parseTocItems(tocItems)
-    console.log('parsed TOC', parsedToc)
-    result.toc = tocItems.map(({ locator: _, ...tocItem }) => tocItem)
+    result.toc = tocItems
 
-    totalPages = parsedToc.firstContentPageTocItem.total
-    totalContentPages = Math.min(
-      parsedToc.firstPostContentPageTocItem?.page ?? totalPages,
-      totalPages
-    )
-    assert(totalContentPages > 0, 'No content pages found')
+    await page.locator('.side-menu-close-button').click()
+    await delay(500)
 
     // Navigate to the first content page of the book
-    await parsedToc.firstContentPageTocItem.locator!.click()
+    // await parsedToc.firstContentPageTocItem.locator!.click()
   }
 
-  await page.locator('.side-menu-close-button').click()
-  await delay(1000)
+  const parsedToc = parseTocItems(result.toc)
 
+  const totalPages = parsedToc.firstContentPageTocItem.total
+  const totalContentPages = Math.min(
+    parsedToc.firstPostContentPageTocItem?.page ?? totalPages,
+    totalPages
+  )
+  assert(totalContentPages > 0, 'No content pages found')
   const pageNumberPaddingAmount = `${totalContentPages * 2}`.length
+  await writeResultMetadata()
+
+  // Navigate to the first content page of the book
+  await goToPage(parsedToc.firstContentPageTocItem.page! ?? 1)
+
   let maxPageSeen = -1
   let done = false
   console.warn(

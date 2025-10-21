@@ -1,4 +1,3 @@
-import type { Locator } from 'patchright'
 import type { Simplify, SimplifyDeep } from 'type-fest'
 
 export interface BookMetadata {
@@ -35,8 +34,6 @@ export type TocItem = SimplifyDeep<
     entries?: Simplify<Omit<TocItem, 'entries'>>[]
   }
 >
-
-export type $TocItem = Simplify<TocItem & { locator?: Locator }>
 
 /** Amazon's YT Metadata */
 export interface BookMeta {

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-non-null-asserted-optional-chain */
-import type { $TocItem, PageNav } from './types'
+import type { PageNav, TocItem } from './types'
 import { assert, deromanize } from './utils'
 
 export function parsePageNav(text: string | null): PageNav | undefined {
@@ -47,9 +47,9 @@ export function parsePageNav(text: string | null): PageNav | undefined {
   }
 }
 
-export function parseTocItems(tocItems: $TocItem[]): {
-  firstContentPageTocItem: $TocItem
-  firstPostContentPageTocItem?: $TocItem
+export function parseTocItems(tocItems: TocItem[]): {
+  firstContentPageTocItem: TocItem
+  firstPostContentPageTocItem?: TocItem
 } {
   const flatTocItems = tocItems.flatMap((item) => [
     item,
