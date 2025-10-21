@@ -18,7 +18,7 @@ import { assert, getEnv, normalizeAuthors, parseJsonpResponse } from './utils'
 // (not strictly necessary, but adblockers do this by default anyway and it
 // makes the script run a bit faster)
 const urlRegexBlacklist = [
-  /unagi-\w+.amazon.com/i, // 'unagi-na.amazon.com'
+  /unagi-\w+\.amazon\.com/i, // 'unagi-na.amazon.com'
   /m\.media-amazon\.com.*\/showads/i,
   /fls-na\.amazon\.com.*\/remote-weblab-triggers/i
 ]
