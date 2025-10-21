@@ -524,6 +524,8 @@ async function main() {
     let retries = 0
 
     do {
+      // This delay seems to help speed up the navigation process, possibly due
+      // to the navigation chevron needing time to settle.
       await delay(100)
 
       let navigationTimeout = 10_000
@@ -568,59 +570,6 @@ async function main() {
         break
       }
     } while (true)
-
-    // Navigation is very spotty without this delay; I think it may be due to
-    // the screenshot changing the DOM temporarily and not being stable yet.
-    // await delay(100)
-
-    // let retries = 0
-
-    // // Occasionally the next page button doesn't work, so ensure that the main
-    // // image src actually changes before continuing.
-    // do {
-    //   try {
-    //     // Navigate to the next page
-    //     // await delay(100)
-    //     if (retries % 10 === 0) {
-    //       if (retries > 0) {
-    //         console.warn('retrying...', {
-    //           src,
-    //           retries,
-    //           ...result.pages.at(-1)
-    //         })
-    //       }
-
-    //       // Click the next page button
-    //       await page
-    //         .locator('.kr-chevron-container-right')
-    //         .click({ timeout: 1000 })
-    //     }
-    //     // await delay(500)
-    //   } catch (err: any) {
-    //     // No next page to navigate to
-    //     console.warn(
-    //       'unable to navigate to next page; breaking...',
-    //       err.message
-    //     )
-    //     break
-    //   }
-
-    //   const newSrc = await page
-    //     .locator(krRendererMainImageSelector)
-    //     .getAttribute('src')
-    //   if (newSrc !== src) {
-    //     // Successfully navigated to the next page
-    //     break
-    //   }
-
-    //   if (pageNav.page >= totalContentPages) {
-    //     break
-    //   }
-
-    //   await delay(100)
-
-    //   ++retries
-    // } while (true)
   } while (!done)
 
   await writeResultMetadata()
