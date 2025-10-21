@@ -321,7 +321,7 @@ async function main() {
   } else {
     // Extract the table of contents
     await page.locator('ion-button[aria-label="Table of Contents"]').click()
-    await delay(2000)
+    await delay(500)
 
     const numTocItems = await page.locator('ion-list ion-item').count()
     const $tocTopLevelItems = await page
@@ -402,6 +402,7 @@ async function main() {
 
     result.toc = tocItems
 
+    // Close the table of contents modal
     await page.locator('.side-menu-close-button').click()
     await delay(500)
 
