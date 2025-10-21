@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-asserted-optional-chain */
 import type { $TocItem, PageNav } from './types'
 import { assert, deromanize } from './utils'
 

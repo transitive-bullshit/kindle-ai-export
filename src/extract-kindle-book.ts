@@ -278,9 +278,10 @@ async function main() {
   async function dismissPossibleAlert() {
     const $alertNo = page.locator('ion-alert button', { hasText: 'No' })
     if (await $alertNo.isVisible()) {
-      $alertNo.click()
+      await $alertNo.click()
     }
   }
+
   async function writeResultMetadata() {
     return fs.writeFile(
       path.join(outDir, 'metadata.json'),

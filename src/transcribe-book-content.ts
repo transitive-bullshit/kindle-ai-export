@@ -68,7 +68,7 @@ Do not include any additional text, descriptions, or punctuation. Ignore any emb
               ]
             })
 
-            const rawText = res.choices[0]?.message.content!
+            const rawText = res.choices[0]!.message.content!
             const text = rawText
               .replace(/^\s*\d+\s*$\n+/m, '')
               // .replaceAll(/\n+/g, '\n')

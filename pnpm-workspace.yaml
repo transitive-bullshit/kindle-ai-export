@@ -1,2 +1,8 @@
 onlyBuiltDependencies:
   - sharp
+
+enablePrePostScripts: true
+
+minimumReleaseAge: 1440
+
+packageManagerStrict: false
