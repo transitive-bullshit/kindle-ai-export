@@ -53,7 +53,7 @@ ${metadata.toc
   )
   .map(
     (tocItem) =>
-      `- [${tocItem.title}](#${tocItem.title.toLowerCase().replaceAll(/[^\da-z]+/g, '-')})`
+      `- [${tocItem.label}](#${tocItem.label.toLowerCase().replaceAll(/[^\da-z]+/g, '-')})`
   )
   .join('\n')}
 
@@ -78,7 +78,7 @@ ${metadata.toc
 
     output += `
 
-## ${tocItem.title}
+## ${tocItem.label}
 
 ${text}`
 

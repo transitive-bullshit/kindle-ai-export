@@ -83,9 +83,9 @@ async function main() {
     const chunks = content.slice(index, nextIndex)
     const text = chunks.map((chunk) => chunk.text).join(' ')
 
-    ;(doc as any).outline.addItem(tocItem.title)
+    ;(doc as any).outline.addItem(tocItem.label)
     doc.fontSize(20)
-    doc.text(tocItem.title, { align: 'center', lineGap: 16 })
+    doc.text(tocItem.label, { align: 'center', lineGap: 16 })
 
     doc.fontSize(fontSize)
     doc.moveDown(1)

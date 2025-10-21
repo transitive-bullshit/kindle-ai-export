@@ -3,30 +3,29 @@ import 'dotenv/config'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import type { SetOptional } from 'type-fest'
 import { input } from '@inquirer/prompts'
 import delay from 'delay'
-// import { chromium, type Locator } from 'playwright'
-import { chromium, type Locator } from 'patchright'
+import pRace from 'p-race'
+// import { chromium } from 'playwright'
+import { chromium } from 'patchright'
+import sharp from 'sharp'
 
-import type { BookInfo, BookMeta, BookMetadata, PageChunk } from './types'
-import {
-  assert,
-  deromanize,
-  getEnv,
-  normalizeAuthors,
-  parseJsonpResponse
-} from './utils'
+import type { $TocItem, BookMetadata } from './types'
+import { parsePageNav, parseTocItems } from './playwright-utils'
+import { assert, getEnv, normalizeAuthors, parseJsonpResponse } from './utils'
 
-interface PageNav {
-  page?: number
-  location?: number
-  total: number
-}
+// Block amazon analytics requests
+// (not strictly necessary, but adblockers do this by default anyway and it
+// makes the script run a bit faster)
+const urlRegexBlacklist = [
+  /unagi-\w+.amazon.com/i, // 'unagi-na.amazon.com'
+  /m\.media-amazon\.com.*\/showads/i,
+  /fls-na\.amazon\.com.*\/remote-weblab-triggers/i
+]
 
-interface TocItem extends PageNav {
-  title: string
-  locator?: Locator
-}
+type RENDER_METHOD = 'screenshot' | 'blob'
+const renderMethod: RENDER_METHOD = 'blob'
 
 async function main() {
   const asin = getEnv('ASIN')
@@ -46,51 +45,59 @@ async function main() {
   const krRendererMainImageSelector = '#kr-renderer .kg-full-page-img img'
   const bookReaderUrl = `https://read.amazon.com/?asin=${asin}`
 
-  // const context = await chromium.launchPersistentContext(userDataDir, {
-  //   headless: false,
-  //   channel: 'chrome',
-  //   executablePath:
-  //     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  //   args: ['--hide-crash-restore-bubble'],
-  //   ignoreDefaultArgs: ['--enable-automation'],
-  //   deviceScaleFactor: 2,
-  //   viewport: { width: 1280, height: 720 }
-  // })
+  const result: SetOptional<BookMetadata, 'info' | 'meta'> = {
+    toc: [],
+    pages: []
+  }
 
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     channel: 'chrome',
     args: [
+      // hide chrome's crash restore popup
       '--hide-crash-restore-bubble',
+      // disable chrome's password autosave popups
       '--disable-features=PasswordAutosave',
+      // disable chrome's passkey popups
       '--disable-features=WebAuthn'
     ],
-    ignoreDefaultArgs: ['--enable-automation'],
+    ignoreDefaultArgs: [
+      // disable chrome's default automation detection flag
+      '--enable-automation',
+      // adding this cause chrome shows a weird admin popup without it
+      '--no-sandbox',
+      // adding this cause chrome shows a weird admin popup without it
+      '--disable-blink-features=AutomationControlled'
+    ],
     deviceScaleFactor: 2,
-    viewport: { width: 1280, height: 720 }
+    viewport: { width: 1280, height: 720 },
+    // bypass amazon's default content security policy which allows us to inject
+    // our own scripts into the page
+    bypassCSP: true
   })
 
   const page = context.pages()[0] ?? (await context.newPage())
-  let info: BookInfo | undefined
-  let meta: BookMeta | undefined
+
+  await page.route('**/*', async (route) => {
+    const urlString = route.request().url()
+    for (const regex of urlRegexBlacklist) {
+      if (regex.test(urlString)) {
+        return route.abort()
+      }
+    }
+
+    return route.continue()
+  })
 
   page.on('response', async (response) => {
     try {
       const status = response.status()
-      if (status !== 200) return
+      if (status !== 200) {
+        return
+      }
 
       const url = new URL(response.url())
-      if (
-        url.hostname === 'read.amazon.com' &&
-        url.pathname === '/service/mobile/reader/startReading' &&
-        url.searchParams.get('asin')?.toLowerCase() === asinL
-      ) {
-        const body: any = await response.json()
-        delete body.karamelToken
-        delete body.metadataUrl
-        delete body.YJFormatVersion
-        info = body
-      } else if (url.pathname.endsWith('YJmetadata.jsonp')) {
+      if (url.pathname.endsWith('YJmetadata.jsonp')) {
         const body = await response.text()
         const metadata = parseJsonpResponse<any>(body)
         if (metadata.asin !== asin) return
@@ -98,16 +105,94 @@ async function main() {
         if (Array.isArray(metadata.authorsList)) {
           metadata.authorsList = normalizeAuthors(metadata.authorsList)
         }
-        meta = metadata
+        if (!result.meta) {
+          console.warn('book meta', metadata)
+        }
+        result.meta = metadata
+      } else if (
+        url.hostname === 'read.amazon.com' &&
+        url.searchParams.get('asin')?.toLowerCase() === asinL
+      ) {
+        if (url.pathname === '/service/mobile/reader/startReading') {
+          const body: any = await response.json()
+          delete body.karamelToken
+          delete body.metadataUrl
+          delete body.YJFormatVersion
+          if (!result.info) {
+            console.warn('book info', body)
+          }
+          result.info = body
+        } else if (url.pathname === '/renderer/render') {
+          // TODO
+          // const body = await response.body()
+          // const tempDir = await extractTarToTemp(body)
+          // const toc = JSON.parse(
+          //   await fs.readFile(path.join(tempDir, 'toc.json'), 'utf8')
+          // )
+          // console.warn('toc', toc)
+        }
       }
     } catch {}
   })
 
+  // Only used for the 'blob' render method
+  const capturedBlobs = new Map<
+    string,
+    {
+      type: string
+      base64: string
+    }
+  >()
+
+  if (renderMethod === 'blob') {
+    await page.exposeFunction('nodeLog', (...args: any[]) => {
+      console.error('[page]', ...args)
+    })
+
+    await page.exposeBinding('captureBlob', (_source, url, payload) => {
+      capturedBlobs.set(url, payload)
+    })
+
+    await context.addInitScript(() => {
+      const origCreateObjectURL = URL.createObjectURL.bind(URL)
+      URL.createObjectURL = function (blob: Blob) {
+        // TODO: filter for image/png blobs? since those are the only ones we're using
+        // (haven't found this to be an issue in practice)
+        const type = blob.type || 'application/octet-stream'
+        const url = origCreateObjectURL(blob)
+        // nodeLog('createObjectURL', url, type, blob.size)
+
+        // Snapshot blob bytes immediately because kindle's renderer revokes
+        // them immediately after they're used.
+        ;(async () => {
+          const buf = await blob.arrayBuffer()
+          // store raw base64 (not data URL) to keep payload small
+          let binary = ''
+          const bytes = new Uint8Array(buf)
+          for (const byte of bytes) {
+            // eslint-disable-next-line unicorn/prefer-code-point
+            binary += String.fromCharCode(byte)
+          }
+
+          const base64 = btoa(binary)
+
+          // @ts-expect-error captureBlob
+          captureBlob(url, { type, base64 })
+        })()
+
+        return url
+      }
+    })
+  }
+
+  // Try going directly to the book reader page if we're already authenticated.
+  // Otherwise wait for the signin page to load.
   await Promise.any([
     page.goto(bookReaderUrl, { timeout: 30_000 }),
     page.waitForURL('**/ap/signin', { timeout: 30_000 })
   ])
 
+  // If we're on the signin page, start the authentication flow.
   if (/\/ap\/signin/g.test(new URL(page.url()).pathname)) {
     await page.locator('input[type="email"]').fill(amazonEmail)
     await page.locator('input[type="submit"]').click()
@@ -134,21 +219,16 @@ async function main() {
 
     if (!page.url().includes(bookReaderUrl)) {
       await page.goto(bookReaderUrl)
-
-      // page.waitForURL('**/kindle-library', { timeout: 30_000 })
-      // await page.locator(`#title-${asin}`).click()
     }
   }
 
-  // await page.goto('https://read.amazon.com/landing')
-  // await page.locator('[id="top-sign-in-btn"]').click()
-  // await page.waitForURL('**/signin')
-
   async function updateSettings() {
-    await page.locator('ion-button[title="Reader settings"]').click()
+    await page.locator('ion-button[aria-label="Reader settings"]').click()
     await delay(1000)
 
     // Change font to Amazon Ember
+    // My hypothesis is that this font will be easier for OCR to transcribe...
+    // TODO: evaluate different fonts & settings
     await page.locator('#AmazonEmber').click()
 
     // Change layout to single column
@@ -158,16 +238,15 @@ async function main() {
       })
       .click()
 
-    await page.locator('ion-button[title="Reader settings"]').click()
+    await page.locator('ion-button[aria-label="Reader settings"]').click()
     await delay(1000)
   }
 
   async function goToPage(pageNumber: number) {
-    await delay(1000)
     await page.locator('#reader-header').hover({ force: true })
     await delay(200)
-    await page.locator('ion-button[title="Reader menu"]').click()
-    await delay(1000)
+    await page.locator('ion-button[aria-label="Reader menu"]').click()
+    await delay(500)
     await page
       .locator('ion-item[role="listitem"]', { hasText: 'Go to Page' })
       .click()
@@ -202,171 +281,324 @@ async function main() {
       $alertNo.click()
     }
   }
+  async function writeResultMetadata() {
+    return fs.writeFile(
+      path.join(outDir, 'metadata.json'),
+      JSON.stringify(result, null, 2)
+    )
+  }
 
   await dismissPossibleAlert()
   await ensureFixedHeaderUI()
   await updateSettings()
 
   const initialPageNav = await getPageNav()
+  let totalPages = 5
+  let totalContentPages = 5
 
-  await page.locator('ion-button[title="Table of Contents"]').click()
-  await delay(1000)
+  {
+    // Extract the table of contents
+    await page.locator('ion-button[aria-label="Table of Contents"]').click()
+    await delay(2000)
 
-  const $tocItems = await page.locator('ion-list ion-item').all()
-  const tocItems: Array<TocItem> = []
+    const numTocItems = await page.locator('ion-list ion-item').count()
+    const $tocTopLevelItems = await page
+      .locator('ion-list > div > ion-item')
+      .all()
+    const tocItems: Array<$TocItem> = []
 
-  console.warn(`initializing ${$tocItems.length} TOC items...`)
-  for (const tocItem of $tocItems) {
-    await tocItem.scrollIntoViewIfNeeded()
+    console.warn(`initializing ${numTocItems} TOC items...`)
 
-    const title = await tocItem.textContent()
-    assert(title)
+    // Make sure toc items are in order by y-position; for some reason, the `.all()`
+    // above doesn't always retain the document ordering.
+    const $tocTopLevelItems2 = await Promise.all(
+      $tocTopLevelItems.map(async (tocItem) => {
+        const bbox = await tocItem.boundingBox()
+        return { tocItem, bbox }
+      })
+    )
 
-    await tocItem.click()
-    await delay(250)
+    $tocTopLevelItems2.sort((a, b) => a.bbox!.y - b.bbox!.y)
+    const $tocTopLevelItems3 = $tocTopLevelItems2.map(({ tocItem }) => tocItem)
 
-    const pageNav = await getPageNav()
-    assert(pageNav)
+    // Loop through each TOC item and extract the page number and title.
+    for (const $tocItem of $tocTopLevelItems3) {
+      const label = (await $tocItem.textContent())?.trim()
+      if (!label) continue
 
-    tocItems.push({
-      title,
-      ...pageNav,
-      locator: tocItem
-    })
+      await $tocItem.click()
+      await delay(10)
 
-    console.warn({ title, ...pageNav })
+      const pageNav = await getPageNav()
+      assert(pageNav)
 
-    // if (pageNav.page !== undefined) {
-    //   break
-    // }
+      const currentTocItem: $TocItem = {
+        label,
+        ...pageNav,
+        locator: $tocItem
+      }
+      tocItems.push(currentTocItem)
 
-    if (pageNav.page !== undefined && pageNav.page >= pageNav.total) {
-      break
+      // if (pageNav.page !== undefined) {
+      //   // TODO: this assumes the toc items are in order and contiguous...
+      //   if (pageNav.page >= pageNav.total) {
+      //     break
+      //   }
+      // }
+
+      const subTocItems = await $tocItem
+        .locator(' + .show-children ion-item')
+        .all()
+
+      if (subTocItems.length > 0) {
+        currentTocItem.entries = []
+        console.warn(`${label}: found ${subTocItems.length} sub-TOC items...`)
+
+        for (const $subTocItem of subTocItems) {
+          const label = await $subTocItem.textContent()
+          assert(label)
+
+          await $subTocItem.click()
+          await delay(10)
+
+          const pageNav = await getPageNav()
+          assert(pageNav)
+
+          currentTocItem.entries!.push({
+            label,
+            ...pageNav
+          })
+
+          console.warn(currentTocItem.label, '=> sub-toc', {
+            label,
+            ...pageNav
+          })
+        }
+      }
+
+      const { locator: _, ...debugTocItem } = currentTocItem
+      console.warn(debugTocItem)
     }
+
+    const parsedToc = parseTocItems(tocItems)
+    console.log('parsed TOC', parsedToc)
+    result.toc = tocItems.map(({ locator: _, ...tocItem }) => tocItem)
+
+    totalPages = parsedToc.firstContentPageTocItem.total
+    totalContentPages = Math.min(
+      parsedToc.firstPostContentPageTocItem?.page ?? totalPages,
+      totalPages
+    )
+    assert(totalContentPages > 0, 'No content pages found')
+
+    // Navigate to the first content page of the book
+    await parsedToc.firstContentPageTocItem.locator!.click()
   }
-
-  const parsedToc = parseTocItems(tocItems)
-  const toc: TocItem[] = tocItems.map(({ locator: _, ...tocItem }) => tocItem)
-
-  const total = parsedToc.firstPageTocItem.total
-  const pagePadding = `${total * 2}`.length
-  await parsedToc.firstPageTocItem.locator!.scrollIntoViewIfNeeded()
-  await parsedToc.firstPageTocItem.locator!.click()
-
-  const totalContentPages = Math.min(
-    parsedToc.afterLastPageTocItem?.page
-      ? parsedToc.afterLastPageTocItem!.page
-      : total,
-    total
-  )
-  assert(totalContentPages > 0, 'No content pages found')
 
   await page.locator('.side-menu-close-button').click()
   await delay(1000)
 
-  const pages: Array<PageChunk> = []
+  const pageNumberPaddingAmount = `${totalContentPages * 2}`.length
+  let maxPageSeen = -1
+  let done = false
   console.warn(
-    `reading ${totalContentPages} pages${total > totalContentPages ? ` (of ${total} total pages stopping at "${parsedToc.afterLastPageTocItem!.title}")` : ''}...`
+    `\nreading ${totalContentPages} content pages out of ${totalPages} total pages...\n`
   )
 
+  // Loop through each page of the book
   do {
     const pageNav = await getPageNav()
+
     if (pageNav?.page === undefined) {
       break
     }
+
     if (pageNav.page > totalContentPages) {
       break
     }
 
-    const index = pages.length
+    if (pageNav.page < maxPageSeen) {
+      break
+    }
 
-    const src = await page
-      .locator(krRendererMainImageSelector)
-      .getAttribute('src')
+    const index = result.pages.length
+    maxPageSeen = Math.max(maxPageSeen, pageNav.page)
 
-    const b = await page
+    const src = (await page
       .locator(krRendererMainImageSelector)
-      .screenshot({ type: 'png', scale: 'css' })
+      .getAttribute('src'))!
+
+    let renderedPageImageBuffer: Buffer | undefined
+
+    if (renderMethod === 'blob') {
+      const blob = await pRace<{ type: string; base64: string } | undefined>(
+        (signal) => [
+          (async () => {
+            while (!signal.aborted) {
+              const blob = capturedBlobs.get(src)
+
+              if (blob) {
+                capturedBlobs.delete(src)
+                return blob
+              }
+
+              await delay(1)
+            }
+          })(),
+
+          delay(10_000, { signal })
+        ]
+      )
+
+      assert(
+        blob,
+        `no blob found for src: ${src} (index ${index}; page ${pageNav.page})`
+      )
+
+      const rawRenderedImage = Buffer.from(blob.base64, 'base64')
+      const c = sharp(rawRenderedImage)
+      const m = await c.metadata()
+      renderedPageImageBuffer = await c
+        .resize({
+          width: Math.floor(m.width / 2),
+          height: Math.floor(m.height / 2)
+        })
+        .png({ quality: 90 })
+        .toBuffer()
+    } else {
+      renderedPageImageBuffer = await page
+        .locator(krRendererMainImageSelector)
+        .screenshot({ type: 'png', scale: 'css' })
+    }
+
+    assert(
+      renderedPageImageBuffer,
+      `no buffer found for src: ${src} (index ${index}; page ${pageNav.page})`
+    )
 
     const screenshotPath = path.join(
       pageScreenshotsDir,
-      `${index}`.padStart(pagePadding, '0') +
+      `${index}`.padStart(pageNumberPaddingAmount, '0') +
         '-' +
-        `${pageNav.page}`.padStart(pagePadding, '0') +
+        `${pageNav.page}`.padStart(pageNumberPaddingAmount, '0') +
         '.png'
     )
-    await fs.writeFile(screenshotPath, b)
-    pages.push({
+
+    await fs.writeFile(screenshotPath, renderedPageImageBuffer)
+    result.pages.push({
       index,
       page: pageNav.page,
       total: pageNav.total,
       screenshot: screenshotPath
     })
+    await writeResultMetadata()
 
-    console.warn(pages.at(-1))
-
-    // Navigation is very spotty without this delay; I think it may be due to
-    // the screenshot changing the DOM temporarily and not being stable yet.
-    await delay(100)
-
-    if (pageNav.page > totalContentPages) {
-      break
-    }
+    console.warn(result.pages.at(-1))
 
     let retries = 0
 
-    // Occasionally the next page button doesn't work, so ensure that the main
-    // image src actually changes before continuing.
     do {
-      try {
-        // Navigate to the next page
-        // await delay(100)
-        if (retries % 10 === 0) {
-          if (retries > 0) {
-            console.warn('retrying...', {
-              src,
-              retries,
-              ...pages.at(-1)
-            })
-          }
-
-          // Click the next page button
-          await page
-            .locator('.kr-chevron-container-right')
-            .click({ timeout: 1000 })
-        }
-        // await delay(500)
-      } catch (err: any) {
-        // No next page to navigate to
-        console.warn(
-          'unable to navigate to next page; breaking...',
-          err.message
-        )
-        break
-      }
-
-      const newSrc = await page
-        .locator(krRendererMainImageSelector)
-        .getAttribute('src')
-      if (newSrc !== src) {
-        break
-      }
-
-      if (pageNav.page >= totalContentPages) {
-        break
-      }
-
       await delay(100)
 
-      ++retries
-    } while (true)
-  } while (true)
+      let navigationTimeout = 10_000
+      try {
+        // await page.keyboard.press('ArrowRight')
+        await page
+          .locator('.kr-chevron-container-right')
+          .click({ timeout: 5000 })
+      } catch (err: any) {
+        console.warn('unable to click next page button', err.message, pageNav)
+        navigationTimeout = 1000
+      }
 
-  const result: BookMetadata = { info: info!, meta: meta!, toc, pages }
-  await fs.writeFile(
-    path.join(outDir, 'metadata.json'),
-    JSON.stringify(result, null, 2)
-  )
+      const navigatedToNextPage = await pRace<boolean | undefined>((signal) => [
+        (async () => {
+          while (!signal.aborted) {
+            const newSrc = await page
+              .locator(krRendererMainImageSelector)
+              .getAttribute('src')
+
+            if (newSrc && newSrc !== src) {
+              // Successfully navigated to the next page
+              return true
+            }
+
+            await delay(10)
+          }
+
+          return false
+        })(),
+
+        delay(navigationTimeout, { signal })
+      ])
+
+      if (navigatedToNextPage) {
+        break
+      }
+
+      if (++retries >= 10) {
+        console.warn('unable to navigate to next page; breaking...', pageNav)
+        done = true
+        break
+      }
+    } while (true)
+
+    // Navigation is very spotty without this delay; I think it may be due to
+    // the screenshot changing the DOM temporarily and not being stable yet.
+    // await delay(100)
+
+    // let retries = 0
+
+    // // Occasionally the next page button doesn't work, so ensure that the main
+    // // image src actually changes before continuing.
+    // do {
+    //   try {
+    //     // Navigate to the next page
+    //     // await delay(100)
+    //     if (retries % 10 === 0) {
+    //       if (retries > 0) {
+    //         console.warn('retrying...', {
+    //           src,
+    //           retries,
+    //           ...result.pages.at(-1)
+    //         })
+    //       }
+
+    //       // Click the next page button
+    //       await page
+    //         .locator('.kr-chevron-container-right')
+    //         .click({ timeout: 1000 })
+    //     }
+    //     // await delay(500)
+    //   } catch (err: any) {
+    //     // No next page to navigate to
+    //     console.warn(
+    //       'unable to navigate to next page; breaking...',
+    //       err.message
+    //     )
+    //     break
+    //   }
+
+    //   const newSrc = await page
+    //     .locator(krRendererMainImageSelector)
+    //     .getAttribute('src')
+    //   if (newSrc !== src) {
+    //     // Successfully navigated to the next page
+    //     break
+    //   }
+
+    //   if (pageNav.page >= totalContentPages) {
+    //     break
+    //   }
+
+    //   await delay(100)
+
+    //   ++retries
+    // } while (true)
+  } while (!done)
+
+  await writeResultMetadata()
+  console.log()
   console.log(JSON.stringify(result, null, 2))
 
   if (initialPageNav?.page !== undefined) {
@@ -375,91 +607,9 @@ async function main() {
     await goToPage(initialPageNav.page)
   }
 
-  await page.close()
+  // await page.close()
   await context.close()
-}
-
-function parsePageNav(text: string | null): PageNav | undefined {
-  {
-    // Parse normal page locations
-    const match = text?.match(/page\s+(\d+)\s+of\s+(\d+)/i)
-    if (match) {
-      const page = Number.parseInt(match?.[1]!)
-      const total = Number.parseInt(match?.[2]!)
-      if (Number.isNaN(page) || Number.isNaN(total)) {
-        return undefined
-      }
-
-      return { page, total }
-    }
-  }
-
-  {
-    // Parse locations which are not part of the main book pages
-    // (toc, copyright, title, etc)
-    const match = text?.match(/location\s+(\d+)\s+of\s+(\d+)/i)
-    if (match) {
-      const location = Number.parseInt(match?.[1]!)
-      const total = Number.parseInt(match?.[2]!)
-      if (Number.isNaN(location) || Number.isNaN(total)) {
-        return undefined
-      }
-
-      return { location, total }
-    }
-  }
-
-  {
-    // Parse locations which use roman numerals
-    const match = text?.match(/page\s+([cdilmvx]+)\s+of\s+(\d+)/i)
-    if (match) {
-      const location = deromanize(match?.[1]!)
-      const total = Number.parseInt(match?.[2]!)
-      if (Number.isNaN(location) || Number.isNaN(total)) {
-        return undefined
-      }
-
-      return { location, total }
-    }
-  }
-}
-
-function parseTocItems(tocItems: TocItem[]) {
-  // Find the first page in the TOC which contains the main book content
-  // (after the title, table of contents, copyright, etc)
-  const firstPageTocItem = tocItems.find((item) => item.page !== undefined)
-  assert(firstPageTocItem, 'Unable to find first valid page in TOC')
-
-  // Try to find the first page in the TOC after the main book content
-  // (e.g. acknowledgements, about the author, etc)
-  const afterLastPageTocItem = tocItems.find((item) => {
-    if (item.page === undefined) return false
-    if (item === firstPageTocItem) return false
-
-    const percentage = item.page / item.total
-    if (percentage < 0.9) return false
-
-    if (/acknowledgements/i.test(item.title)) return true
-    if (/^discover more$/i.test(item.title)) return true
-    if (/^extras$/i.test(item.title)) return true
-    if (/about the author/i.test(item.title)) return true
-    if (/meet the author/i.test(item.title)) return true
-    if (/^also by /i.test(item.title)) return true
-    if (/^copyright$/i.test(item.title)) return true
-    if (/ teaser$/i.test(item.title)) return true
-    if (/ preview$/i.test(item.title)) return true
-    if (/^excerpt from/i.test(item.title)) return true
-    if (/^cast of characters$/i.test(item.title)) return true
-    if (/^timeline$/i.test(item.title)) return true
-    if (/^other titles/i.test(item.title)) return true
-
-    return false
-  })
-
-  return {
-    firstPageTocItem,
-    afterLastPageTocItem
-  }
+  await context.browser()?.close()
 }
 
 await main()

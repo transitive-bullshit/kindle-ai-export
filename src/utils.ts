@@ -1,7 +1,11 @@
 import fs from 'node:fs/promises'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 
 import hashObjectImpl from 'hash-object'
 import timeFormat from 'hh-mm-ss'
+import { extract } from 'tar'
+import { temporaryDirectory } from 'tempy'
 
 export {
   assert,
@@ -77,5 +81,32 @@ export function ffmpegOnProgress(
       progress = Math.max(0, Math.min(1, progress))
       onProgress(progress, event)
     }
+  }
+}
+
+/**
+ * Decompress a TAR (optionally .tar.gz/.tgz) Buffer to a fresh temp directory.
+ * Returns the absolute path of the temp directory.
+ */
+export async function extractTarToTemp(
+  buf: Buffer,
+  opts: { strip?: number } = {}
+): Promise<string> {
+  const dir = temporaryDirectory()
+  const isGzip = buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b
+
+  try {
+    const extractor = extract({
+      cwd: dir,
+      gzip: isGzip,
+      strip: opts.strip ?? 0 // remove leading path segments if desired
+    })
+
+    await pipeline(Readable.from(buf), extractor)
+    return dir
+  } catch (err) {
+    // Clean up the temp dir if extraction fails
+    await fs.rm(dir, { recursive: true, force: true }).catch(() => {})
+    throw err
   }
 }
