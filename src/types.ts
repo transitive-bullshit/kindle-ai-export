@@ -1,4 +1,4 @@
-import type { Simplify, SimplifyDeep } from 'type-fest'
+import type { Simplify } from 'type-fest'
 
 export interface BookMetadata {
   info: BookInfo
@@ -27,7 +27,7 @@ export interface PageNav {
   total: number
 }
 
-export type TocItem = SimplifyDeep<
+export type TocItem = Simplify<
   PageNav & {
     label: string
     // tocPositionId?: number

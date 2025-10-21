@@ -51,21 +51,16 @@ export function parseTocItems(tocItems: TocItem[]): {
   firstContentPageTocItem: TocItem
   firstPostContentPageTocItem?: TocItem
 } {
-  const flatTocItems = tocItems.flatMap((item) => [
-    item,
-    ...(item.entries ?? [])
-  ])
-
   // Find the first page in the TOC which contains the main book content
   // (after the title, table of contents, copyright, etc)
-  const firstContentPageTocItem = flatTocItems.find(
+  const firstContentPageTocItem = tocItems.find(
     (item) => item.page !== undefined
   )
   assert(firstContentPageTocItem, 'Unable to find first valid page in TOC')
 
   // Try to find the first page in the TOC after the main book content
   // (e.g. acknowledgements, about the author, etc)
-  const firstPostContentPageTocItem = flatTocItems.find((item) => {
+  const firstPostContentPageTocItem = tocItems.find((item) => {
     if (item.page === undefined) return false
     if (item === firstContentPageTocItem) return false
 

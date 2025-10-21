@@ -1,8 +1,9 @@
-onlyBuiltDependencies:
-  - sharp
-
 enablePrePostScripts: true
 
 minimumReleaseAge: 1440
+
+onlyBuiltDependencies:
+  - sharp
+  - simple-git-hooks
 
 packageManagerStrict: false

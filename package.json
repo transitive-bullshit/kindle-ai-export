@@ -51,8 +51,10 @@
     "del-cli": "^7.0.0",
     "delay": "^6.0.0",
     "eslint": "^9.38.0",
+    "lint-staged": "^16.2.5",
     "npm-run-all2": "^6.2.2",
     "prettier": "^3.6.2",
+    "simple-git-hooks": "^2.13.1",
     "typescript": "^5.9.3",
     "vitest": "2.1.2"
   },
