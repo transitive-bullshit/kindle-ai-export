@@ -3,6 +3,7 @@ enablePrePostScripts: true
 minimumReleaseAge: 1440
 
 onlyBuiltDependencies:
+  - esbuild
   - sharp
   - simple-git-hooks
 

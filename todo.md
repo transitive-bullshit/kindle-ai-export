@@ -1,1 +1,9 @@
-- add github repo link to exports
+- extraction
+  - extract raw images (product image, etc)
+  - special-case handling of pages with only an image child
+  - handle rich-text / markdown
+  - handle extra newlines and breaks
+    - B000FBJAGO page 68
+  - investigate direct glyph mapping per render TAR chunk (every 5 pages)
+  - toc metadata should include positions
+    - investigate inferring these without scrolling through TOC sequentially
