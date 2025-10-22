@@ -144,7 +144,7 @@ By ${authors.join(', ')}`
       .replaceAll('\n', '\n\n')
 
     // Split the text in this chapter into paragraphs.
-    const t = `${tocItem.title}
+    const t = `${tocItem.label}
 
 ${text}`.split('\n\n')
 
@@ -175,7 +175,7 @@ ${text}`.split('\n\n')
 
     for (const [k, element] of t.entries()) {
       batches.push({
-        title: k === 0 ? tocItem.title : undefined,
+        title: k === 0 ? tocItem.label : undefined,
         text: element!
       })
     }

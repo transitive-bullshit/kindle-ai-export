@@ -83,9 +83,9 @@ async function main() {
     const chunks = content.slice(index, nextIndex)
     const text = chunks.map((chunk) => chunk.text).join(' ')
 
-    ;(doc as any).outline.addItem(tocItem.title)
-    doc.fontSize(20)
-    doc.text(tocItem.title, { align: 'center', lineGap: 16 })
+    ;(doc as any).outline.addItem(tocItem.label)
+    doc.fontSize(tocItem.depth === 1 ? 16 : 20)
+    doc.text(tocItem.label, { align: 'center', lineGap: 16 })
 
     doc.fontSize(fontSize)
     doc.moveDown(1)
@@ -101,7 +101,7 @@ async function main() {
   }
 
   doc.end()
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     stream.on('finish', resolve)
     stream.on('error', reject)
   })

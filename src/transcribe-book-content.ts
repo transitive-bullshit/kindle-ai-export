@@ -3,11 +3,10 @@ import 'dotenv/config'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { globby } from 'globby'
 import { OpenAIClient } from 'openai-fetch'
 import pMap from 'p-map'
 
-import type { ContentChunk } from './types'
+import type { BookMetadata, ContentChunk, TocItem } from './types'
 import { assert, getEnv } from './utils'
 
 async function main() {
@@ -15,29 +14,47 @@ async function main() {
   assert(asin, 'ASIN is required')
 
   const outDir = path.join('out', asin)
-  const pageScreenshotsDir = path.join(outDir, 'pages')
-  const pageScreenshots = await globby(`${pageScreenshotsDir}/*.png`)
-  assert(pageScreenshots.length, 'no page screenshots found')
+  const metadata = JSON.parse(
+    await fs.readFile(path.join(outDir, 'metadata.json'), 'utf8')
+  ) as BookMetadata
+  assert(metadata.pages?.length, 'no page screenshots found')
+  assert(metadata.toc?.length, 'invalid book metadata: missing toc')
+
+  // eslint-disable-next-line unicorn/no-array-reduce
+  const pageToTocItemMap = metadata.toc.reduce(
+    (acc, tocItem) => {
+      if (tocItem.page !== undefined) {
+        acc[tocItem.page] = tocItem
+      }
+      return acc
+    },
+    {} as Record<number, TocItem>
+  )
+
+  // const pageScreenshotsDir = path.join(outDir, 'pages')
+  // const pageScreenshots = await globby(`${pageScreenshotsDir}/*.png`)
+  // assert(pageScreenshots.length, 'no page screenshots found')
 
   const openai = new OpenAIClient()
 
   const content: ContentChunk[] = (
     await pMap(
-      pageScreenshots,
-      async (screenshot) => {
+      metadata.pages,
+      async (pageChunk, pageChunkIndex) => {
+        const { screenshot, index, page } = pageChunk
         const screenshotBuffer = await fs.readFile(screenshot)
         const screenshotBase64 = `data:image/png;base64,${screenshotBuffer.toString('base64')}`
-        const metadataMatch = screenshot.match(/0*(\d+)-\0*(\d+).png/)
-        assert(
-          metadataMatch?.[1] && metadataMatch?.[2],
-          `invalid screenshot filename: ${screenshot}`
-        )
-        const index = Number.parseInt(metadataMatch[1]!, 10)
-        const page = Number.parseInt(metadataMatch[2]!, 10)
-        assert(
-          !Number.isNaN(index) && !Number.isNaN(page),
-          `invalid screenshot filename: ${screenshot}`
-        )
+        // const metadataMatch = screenshot.match(/0*(\d+)-\0*(\d+).png/)
+        // assert(
+        //   metadataMatch?.[1] && metadataMatch?.[2],
+        //   `invalid screenshot filename: ${screenshot}`
+        // )
+        // const index = Number.parseInt(metadataMatch[1]!, 10)
+        // const page = Number.parseInt(metadataMatch[2]!, 10)
+        // assert(
+        //   !Number.isNaN(index) && !Number.isNaN(page),
+        //   `invalid screenshot filename: ${screenshot}`
+        // )
 
         try {
           const maxRetries = 20
@@ -45,7 +62,7 @@ async function main() {
 
           do {
             const res = await openai.createChatCompletion({
-              model: 'gpt-4o',
+              model: 'gpt-4.1-mini',
               temperature: retries < 2 ? 0 : 0.5,
               messages: [
                 {
@@ -68,8 +85,8 @@ Do not include any additional text, descriptions, or punctuation. Ignore any emb
               ]
             })
 
-            const rawText = res.choices[0]?.message.content!
-            const text = rawText
+            const rawText = res.choices[0]!.message.content!
+            let text = rawText
               .replace(/^\s*\d+\s*$\n+/m, '')
               // .replaceAll(/\n+/g, '\n')
               .replaceAll(/^\s*/gm, '')
@@ -93,6 +110,18 @@ Do not include any additional text, descriptions, or punctuation. Ignore any emb
               // higher temperature and cross our fingers.
               console.warn('retrying refusal...', { index, text, screenshot })
               continue
+            }
+
+            const prevPageChunk = metadata.pages[pageChunkIndex - 1]
+            if (prevPageChunk && prevPageChunk.page !== page) {
+              const tocItem = pageToTocItemMap[page]
+              if (tocItem) {
+                text = text.replace(
+                  // eslint-disable-next-line security/detect-non-literal-regexp
+                  new RegExp(`^${tocItem.label}\\s*`, 'i'),
+                  ''
+                )
+              }
             }
 
             const result: ContentChunk = {

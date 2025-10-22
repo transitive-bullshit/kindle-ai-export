@@ -1,15 +1,10 @@
-export interface ContentChunk {
-  index: number
-  page: number
-  text: string
-  screenshot: string
-}
+import type { Simplify } from 'type-fest'
 
-export interface TocItem {
-  title: string
-  page?: number
-  location?: number
-  total: number
+export interface BookMetadata {
+  info: BookInfo
+  meta: BookMeta
+  toc: TocItem[]
+  pages: PageChunk[]
 }
 
 export interface PageChunk {
@@ -19,6 +14,28 @@ export interface PageChunk {
   screenshot: string
 }
 
+export interface ContentChunk {
+  index: number
+  page: number
+  text: string
+  screenshot: string
+}
+
+export interface PageNav {
+  page?: number
+  location?: number
+  total: number
+}
+
+export type TocItem = Simplify<
+  PageNav & {
+    label: string
+    // tocPositionId?: number
+    depth: number
+  }
+>
+
+/** Amazon's YT Metadata */
 export interface BookMeta {
   ACR: string
   asin: string
@@ -37,11 +54,13 @@ export interface BookMeta {
   releaseDate: string
   sample: boolean
   title: string
+  /** A hash unique to the book's version */
   version: string
   startPosition: number
   endPosition: number
 }
 
+/** Amazon's Karamel Book Metadata */
 export interface BookInfo {
   clippingLimit: number
   contentChecksum: any
@@ -67,11 +86,4 @@ export interface BookInfo {
   pageNumberUrl: any
   requestedAsin: string
   srl: number
-}
-
-export interface BookMetadata {
-  info: BookInfo
-  meta: BookMeta
-  toc: TocItem[]
-  pages: PageChunk[]
 }
