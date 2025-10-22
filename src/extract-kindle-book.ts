@@ -12,7 +12,14 @@ import sharp from 'sharp'
 
 import type { BookMetadata, TocItem } from './types'
 import { parsePageNav, parseTocItems } from './playwright-utils'
-import { assert, getEnv, normalizeAuthors, parseJsonpResponse } from './utils'
+import {
+  assert,
+  // extractTar,
+  getEnv,
+  // hashObject,
+  normalizeAuthors,
+  parseJsonpResponse
+} from './utils'
 
 // Block amazon analytics requests
 // (not strictly necessary, but adblockers do this by default anyway and it
@@ -148,8 +155,20 @@ async function main() {
           result.info = body
         } else if (url.pathname === '/renderer/render') {
           // TODO: these TAR files have some useful metadata that we could use...
+          // const params = Object.fromEntries(url.searchParams.entries())
+          // const hash = hashObject(params)
+          // const renderDir = path.join(userDataDir, 'render', hash)
+          // await fs.mkdir(renderDir, { recursive: true })
           // const body = await response.body()
-          // const tempDir = await extractTarToTemp(body)
+          // const tempDir = await extractTar(body, { cwd: renderDir })
+          // const { startingPosition, skipPageCount, numPage } = params
+          // console.log('RENDER TAR', tempDir, {
+          //   startingPosition,
+          //   skipPageCount,
+          //   numPage
+          // })
+          // TODO: if `location_map.json` exists, record `navigationUnit` map of positions to pages
+          // TODO: `page_data_0_5.json` has start/end/words for each page in this render batch
           // const toc = JSON.parse(
           //   await fs.readFile(path.join(tempDir, 'toc.json'), 'utf8')
           // )

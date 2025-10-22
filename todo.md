@@ -1,4 +1,4 @@
-- extraction
+- `extract-kindle-book`
   - extract raw images (product image, etc)
   - special-case handling of pages with only an image child
   - handle rich-text / markdown

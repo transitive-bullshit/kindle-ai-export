@@ -137,25 +137,27 @@ export function ffmpegOnProgress(
  * Decompress a TAR (optionally .tar.gz/.tgz) Buffer to a fresh temp directory.
  * Returns the absolute path of the temp directory.
  */
-export async function extractTarToTemp(
+export async function extractTar(
   buf: Buffer,
-  opts: { strip?: number } = {}
+  {
+    strip = 0,
+    cwd = temporaryDirectory()
+  }: { strip?: number; cwd?: string } = {}
 ): Promise<string> {
-  const dir = temporaryDirectory()
   const isGzip = buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b
 
   try {
     const extractor = extract({
-      cwd: dir,
+      cwd,
       gzip: isGzip,
-      strip: opts.strip ?? 0 // remove leading path segments if desired
+      strip
     })
 
     await pipeline(Readable.from(buf), extractor)
-    return dir
+    return cwd
   } catch (err) {
     // Clean up the temp dir if extraction fails
-    await fs.rm(dir, { recursive: true, force: true }).catch(() => {})
+    await fs.rm(cwd, { recursive: true, force: true }).catch(() => {})
     throw err
   }
 }
