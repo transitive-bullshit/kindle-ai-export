@@ -4,8 +4,11 @@ import { pipeline } from 'node:stream/promises'
 
 import hashObjectImpl from 'hash-object'
 import timeFormat from 'hh-mm-ss'
+import sortKeys from 'sort-keys'
 import { extract } from 'tar'
 import { temporaryDirectory } from 'tempy'
+
+import type { BookMetadata } from './types'
 
 export function assert(
   value: unknown,
@@ -160,4 +163,41 @@ export async function extractTar(
     await fs.rm(cwd, { recursive: true, force: true }).catch(() => {})
     throw err
   }
+}
+
+export async function readJsonFile<T = unknown>(filePath: string): Promise<T> {
+  return JSON.parse(await fs.readFile(filePath, 'utf8')) as T
+}
+
+export async function tryReadJsonFile<T = unknown>(
+  filePath: string
+): Promise<T | undefined> {
+  try {
+    return readJsonFile(filePath)
+  } catch {}
+}
+
+const bookMetadataFieldOrder: (keyof BookMetadata)[] = [
+  'meta',
+  'info',
+  'nav',
+  'toc',
+  'pages',
+  'locationMap'
+]
+
+const bookMetadataFieldsOrderMap = Object.fromEntries(
+  bookMetadataFieldOrder.map((f, i) => [f, i])
+)
+
+function bookMetadataFieldComparator(a: string, b: string): number {
+  const aIndex = bookMetadataFieldsOrderMap[a] ?? Infinity
+  const bIndex = bookMetadataFieldsOrderMap[b] ?? Infinity
+
+  return aIndex - bIndex
+}
+export function normalizeBookMetadata(
+  book: Partial<BookMetadata>
+): Partial<BookMetadata> {
+  return sortKeys(book, { compare: bookMetadataFieldComparator })
 }

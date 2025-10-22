@@ -1,8 +1,4 @@
 import { config } from '@fisch0920/config/eslint'
+import { globalIgnores } from 'eslint/config'
 
-export default [
-  ...config,
-  {
-    ignores: ['**/out/**', '**/dist/**']
-  }
-]
+export default [...config, globalIgnores(['out', 'dist', 'examples'])]

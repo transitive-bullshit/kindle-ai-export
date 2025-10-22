@@ -1,16 +1,29 @@
-import type { Simplify } from 'type-fest'
-
 export interface BookMetadata {
-  info: BookInfo
-  meta: BookMeta
+  meta: AmazonBookMeta
+  info: AmazonBookInfo
+  nav: Nav
   toc: TocItem[]
   pages: PageChunk[]
+  locationMap: AmazonRenderLocationMap
+}
+
+export interface Nav {
+  startPosition: number // inclusive
+  endPosition: number // inclusive?
+
+  startContentPosition: number // inclusive
+  startContentPage: number // inclusive
+
+  endContentPosition: number // exclusive
+  endContentPage: number // exclusive?
+
+  totalNumPages: number
+  totalNumContentPages: number
 }
 
 export interface PageChunk {
   index: number
   page: number
-  total: number
   screenshot: string
 }
 
@@ -27,16 +40,25 @@ export interface PageNav {
   total: number
 }
 
-export type TocItem = Simplify<
-  PageNav & {
-    label: string
-    // tocPositionId?: number
-    depth: number
-  }
->
+export type TocItem = {
+  label: string
+  positionId: number
+  page?: number
+  location?: number
+  depth: number
+} & (
+  | {
+      page: number
+      location?: never
+    }
+  | {
+      page?: never
+      location: number
+    }
+)
 
 /** Amazon's YT Metadata */
-export interface BookMeta {
+export interface AmazonBookMeta {
   ACR: string
   asin: string
   authorList: Array<string>
@@ -61,7 +83,7 @@ export interface BookMeta {
 }
 
 /** Amazon's Karamel Book Metadata */
-export interface BookInfo {
+export interface AmazonBookInfo {
   clippingLimit: number
   contentChecksum: any
   contentType: string
@@ -86,4 +108,21 @@ export interface BookInfo {
   pageNumberUrl: any
   requestedAsin: string
   srl: number
+}
+
+export interface AmazonRenderLocationMap {
+  locations: number[]
+  navigationUnit: Array<{
+    startPosition: number
+    page: number // derived
+    label: string
+  }>
+}
+
+export type AmazonRenderToc = Array<AmazonRenderTocItem>
+
+export type AmazonRenderTocItem = {
+  label: string
+  tocPositionId: number
+  entries?: AmazonRenderTocItem[]
 }

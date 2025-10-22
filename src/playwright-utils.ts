@@ -47,7 +47,10 @@ export function parsePageNav(text: string | null): PageNav | undefined {
   }
 }
 
-export function parseTocItems(tocItems: TocItem[]): {
+export function parseTocItems(
+  tocItems: TocItem[],
+  { totalNumPages }: { totalNumPages: number }
+): {
   firstContentPageTocItem: TocItem
   firstPostContentPageTocItem?: TocItem
 } {
@@ -64,7 +67,7 @@ export function parseTocItems(tocItems: TocItem[]): {
     if (item.page === undefined) return false
     if (item === firstContentPageTocItem) return false
 
-    const percentage = item.page / item.total
+    const percentage = item.page / totalNumPages
     if (percentage < 0.9) return false
 
     // (epilogue purposefully shortened here)

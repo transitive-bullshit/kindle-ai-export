@@ -1,0 +1,96 @@
+// NOTE: we're now inferring the TOC via metadata without scrolling through it,
+// so this code currently isn't used.
+// if (!force && result.toc.length) {
+//   // Using a cached table of contents
+// } else {
+//   // Extract the table of contents
+//   await page.locator('ion-button[aria-label="Table of Contents"]').click()
+//   await delay(500)
+
+//   const numTocItems = await page.locator('ion-list ion-item').count()
+//   const $tocTopLevelItems = await page
+//     // TODO: this is pretty brittle
+//     .locator('ion-list > div > ion-item')
+//     .all()
+//   const tocItems: Array<TocItem> = []
+
+//   console.warn(`initializing ${numTocItems} TOC items...`)
+
+//   // Make sure toc items are in order by y-position; for some reason, the `.all()`
+//   // above doesn't always retain the document ordering.
+//   const $tocTopLevelItems2 = await Promise.all(
+//     $tocTopLevelItems.map(async (tocItem) => {
+//       const bbox = await tocItem.boundingBox()
+//       return { tocItem, bbox }
+//     })
+//   )
+
+//   $tocTopLevelItems2.sort((a, b) => a.bbox!.y - b.bbox!.y)
+//   const $tocTopLevelItems3 = $tocTopLevelItems2.map(({ tocItem }) => tocItem)
+
+//   // Loop through each TOC item and extract the page number and title.
+//   for (const $tocItem of $tocTopLevelItems3) {
+//     const label = (await $tocItem.textContent())?.trim()
+//     if (!label) continue
+
+//     await $tocItem.click()
+//     await delay(10)
+
+//     const pageNav = await getPageNav()
+//     assert(pageNav)
+
+//     const currentTocItem: TocItem = {
+//       label,
+//       depth: 0,
+//       ...pageNav
+//     }
+//     tocItems.push(currentTocItem)
+//     console.warn(currentTocItem)
+
+//     // if (pageNav.page !== undefined) {
+//     //   // TODO: this assumes the toc items are in order and contiguous...
+//     //   if (pageNav.page >= pageNav.total) {
+//     //     break
+//     //   }
+//     // }
+
+//     const subTocItems = await $tocItem
+//       .locator(' + .show-children ion-item')
+//       .all()
+
+//     if (subTocItems.length > 0) {
+//       console.warn(`${label}: found ${subTocItems.length} sub-TOC items...`)
+
+//       for (const $subTocItem of subTocItems) {
+//         const label = await $subTocItem.textContent()
+//         assert(label)
+
+//         await $subTocItem.click()
+//         await delay(10)
+
+//         const pageNav = await getPageNav()
+//         assert(pageNav)
+
+//         tocItems.push({
+//           label,
+//           depth: 1,
+//           ...pageNav
+//         })
+
+//         console.warn(currentTocItem.label, '=> sub-toc', {
+//           label,
+//           ...pageNav
+//         })
+//       }
+//     }
+//   }
+
+//   result.toc = tocItems
+
+//   // Close the table of contents modal
+//   await page.locator('.side-menu-close-button').click()
+//   await delay(500)
+
+//   // Navigate to the first content page of the book
+//   // await parsedToc.firstContentPageTocItem.locator!.click()
+// }

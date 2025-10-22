@@ -7,20 +7,19 @@ import { OpenAIClient } from 'openai-fetch'
 import pMap from 'p-map'
 
 import type { BookMetadata, ContentChunk, TocItem } from './types'
-import { assert, getEnv } from './utils'
+import { assert, getEnv, readJsonFile } from './utils'
 
 async function main() {
   const asin = getEnv('ASIN')
   assert(asin, 'ASIN is required')
 
   const outDir = path.join('out', asin)
-  const metadata = JSON.parse(
-    await fs.readFile(path.join(outDir, 'metadata.json'), 'utf8')
-  ) as BookMetadata
+  const metadata = await readJsonFile<BookMetadata>(
+    path.join(outDir, 'metadata.json')
+  )
   assert(metadata.pages?.length, 'no page screenshots found')
   assert(metadata.toc?.length, 'invalid book metadata: missing toc')
 
-  // eslint-disable-next-line unicorn/no-array-reduce
   const pageToTocItemMap = metadata.toc.reduce(
     (acc, tocItem) => {
       if (tocItem.page !== undefined) {

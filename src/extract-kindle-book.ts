@@ -3,6 +3,7 @@ import 'dotenv/config'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import type { SetRequired } from 'type-fest'
 import { input } from '@inquirer/prompts'
 import delay from 'delay'
 import pRace from 'p-race'
@@ -10,15 +11,23 @@ import pRace from 'p-race'
 import { chromium } from 'patchright'
 import sharp from 'sharp'
 
-import type { BookMetadata, TocItem } from './types'
+import type {
+  AmazonRenderLocationMap,
+  AmazonRenderToc,
+  AmazonRenderTocItem,
+  BookMetadata,
+  TocItem
+} from './types'
 import { parsePageNav, parseTocItems } from './playwright-utils'
 import {
   assert,
-  // extractTar,
+  extractTar,
   getEnv,
-  // hashObject,
+  hashObject,
   normalizeAuthors,
-  parseJsonpResponse
+  normalizeBookMetadata,
+  parseJsonpResponse,
+  tryReadJsonFile
 } from './utils'
 
 // Block amazon analytics requests
@@ -37,7 +46,6 @@ async function main() {
   const asin = getEnv('ASIN')
   const amazonEmail = getEnv('AMAZON_EMAIL')
   const amazonPassword = getEnv('AMAZON_PASSWORD')
-  const force = !!getEnv('FORCE')
   assert(asin, 'ASIN is required')
   assert(amazonEmail, 'AMAZON_EMAIL is required')
   assert(amazonPassword, 'AMAZON_PASSWORD is required')
@@ -53,22 +61,22 @@ async function main() {
   const krRendererMainImageSelector = '#kr-renderer .kg-full-page-img img'
   const bookReaderUrl = `https://read.amazon.com/?asin=${asin}`
 
-  const result: BookMetadata = {
-    meta: {} as any,
-    info: {} as any,
-    toc: [],
-    pages: []
+  const result: SetRequired<Partial<BookMetadata>, 'pages' | 'nav'> = {
+    pages: [],
+    // locationMap: { locations: [], navigationUnit: [] },
+    nav: {
+      startPosition: -1,
+      endPosition: -1,
+      startContentPosition: -1,
+      startContentPage: -1,
+      endContentPosition: -1,
+      endContentPage: -1,
+      totalNumPages: -1,
+      totalNumContentPages: -1
+    }
   }
-  let prevBookMetadata: Partial<BookMetadata> = {}
 
-  if (!force) {
-    try {
-      prevBookMetadata = JSON.parse(
-        await fs.readFile(metadataPath, 'utf8')
-      ) as Partial<BookMetadata>
-    } catch {}
-  }
-
+  const deviceScaleFactor = 2
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     channel: 'chrome',
@@ -88,11 +96,11 @@ async function main() {
       // adding this cause chrome shows a weird admin popup without it
       '--disable-blink-features=AutomationControlled'
     ],
-    deviceScaleFactor: 2,
-    viewport: { width: 1280, height: 720 },
     // bypass amazon's default content security policy which allows us to inject
     // our own scripts into the page
-    bypassCSP: true
+    bypassCSP: true,
+    deviceScaleFactor,
+    viewport: { width: 1280, height: 720 }
   })
 
   const page = context.pages()[0] ?? (await context.newPage())
@@ -126,18 +134,8 @@ async function main() {
           metadata.authorsList = normalizeAuthors(metadata.authorsList)
         }
 
-        if (!Object.keys(result.meta).length) {
-          if (
-            metadata.version &&
-            metadata.version === prevBookMetadata.meta?.version
-          ) {
-            if (!result.toc.length && prevBookMetadata.toc?.length) {
-              // Use previously extracted TOC
-              console.warn('using cached TOC', prevBookMetadata.toc)
-              result.toc = prevBookMetadata.toc
-            }
-          }
-
+        if (!result.meta) {
+          console.warn('book meta', metadata)
           result.meta = metadata
         }
       } else if (
@@ -149,25 +147,61 @@ async function main() {
           delete body.karamelToken
           delete body.metadataUrl
           delete body.YJFormatVersion
-          if (!Object.keys(result.info).length) {
+          if (!result.info) {
             console.warn('book info', body)
           }
           result.info = body
         } else if (url.pathname === '/renderer/render') {
           // TODO: these TAR files have some useful metadata that we could use...
-          // const params = Object.fromEntries(url.searchParams.entries())
-          // const hash = hashObject(params)
-          // const renderDir = path.join(userDataDir, 'render', hash)
-          // await fs.mkdir(renderDir, { recursive: true })
-          // const body = await response.body()
-          // const tempDir = await extractTar(body, { cwd: renderDir })
-          // const { startingPosition, skipPageCount, numPage } = params
-          // console.log('RENDER TAR', tempDir, {
-          //   startingPosition,
-          //   skipPageCount,
-          //   numPage
-          // })
-          // TODO: if `location_map.json` exists, record `navigationUnit` map of positions to pages
+          const params = Object.fromEntries(url.searchParams.entries())
+          const hash = hashObject(params)
+          const renderDir = path.join(userDataDir, 'render', hash)
+          await fs.mkdir(renderDir, { recursive: true })
+          const body = await response.body()
+          const tempDir = await extractTar(body, { cwd: renderDir })
+          const { startingPosition, skipPageCount, numPage } = params
+          console.log('RENDER TAR', tempDir, {
+            startingPosition,
+            skipPageCount,
+            numPage
+          })
+
+          const locationMap = await tryReadJsonFile<AmazonRenderLocationMap>(
+            path.join(renderDir, 'location_map.json')
+          )
+          if (locationMap) {
+            result.locationMap = locationMap
+
+            for (const navUnit of result.locationMap.navigationUnit) {
+              navUnit.page = Number.parseInt(navUnit.label, 10)
+              assert(
+                !Number.isNaN(navUnit.page),
+                `invalid locationMap page number: ${navUnit.label}`
+              )
+            }
+          }
+
+          const metadata = await tryReadJsonFile<any>(
+            path.join(renderDir, 'metadata.json')
+          )
+          if (metadata) {
+            result.nav.startPosition = metadata.firstPositionId
+            result.nav.endPosition = metadata.lastPositionId
+          }
+
+          const rawToc = await tryReadJsonFile<AmazonRenderToc>(
+            path.join(renderDir, 'toc.json')
+          )
+          if (rawToc && result.locationMap && !result.toc) {
+            const toc: TocItem[] = []
+
+            for (const rawTocItem of rawToc) {
+              toc.push(...getTocItems(rawTocItem, { depth: 0 }))
+            }
+
+            result.toc = toc
+          }
+
           // TODO: `page_data_0_5.json` has start/end/words for each page in this render batch
           // const toc = JSON.parse(
           //   await fs.readFile(path.join(tempDir, 'toc.json'), 'utf8')
@@ -326,128 +360,102 @@ async function main() {
   }
 
   async function writeResultMetadata() {
-    return fs.writeFile(metadataPath, JSON.stringify(result, null, 2))
+    return fs.writeFile(
+      metadataPath,
+      JSON.stringify(normalizeBookMetadata(result), null, 2)
+    )
+  }
+
+  function getTocItems(
+    rawTocItem: AmazonRenderTocItem,
+    { depth = 0 }: { depth?: number } = {}
+  ): TocItem[] {
+    const positionId = rawTocItem.tocPositionId
+    const page = getPageForPosition(positionId)
+
+    const tocItem: TocItem = {
+      label: rawTocItem.label,
+      positionId,
+      page,
+      depth
+    }
+
+    const tocItems: TocItem[] = [tocItem]
+
+    if (rawTocItem.entries) {
+      for (const rawTocItemEntry of rawTocItem.entries) {
+        tocItems.push(...getTocItems(rawTocItemEntry, { depth: depth + 1 }))
+      }
+    }
+
+    return tocItems
+  }
+
+  function getPageForPosition(position: number): number {
+    if (!result.locationMap) return -1
+
+    let resultPage = 1
+
+    // TODO: this is O(n) but we can do better
+    for (const { startPosition, page } of result.locationMap.navigationUnit) {
+      if (startPosition > position) break
+
+      resultPage = page
+    }
+
+    return resultPage
   }
 
   await dismissPossibleAlert()
   await ensureFixedHeaderUI()
   await updateSettings()
 
+  // Record the initial page navigation so we can reset back to it later
   const initialPageNav = await getPageNav()
 
-  if (!force && result.toc.length) {
-    // Using a cached table of contents
-  } else {
-    // Extract the table of contents
-    await page.locator('ion-button[aria-label="Table of Contents"]').click()
-    await delay(500)
+  // At this point, we should have recorded all the base book metadata from the
+  // initial network requests.
+  assert(result.info, 'expected book info to be initialized')
+  assert(result.meta, 'expected book meta to be initialized')
+  assert(result.toc?.length, 'expected book toc to be initialized')
+  assert(result.locationMap, 'expected book location map to be initialized')
 
-    const numTocItems = await page.locator('ion-list ion-item').count()
-    const $tocTopLevelItems = await page
-      // TODO: this is pretty brittle
-      .locator('ion-list > div > ion-item')
-      .all()
-    const tocItems: Array<TocItem> = []
-
-    console.warn(`initializing ${numTocItems} TOC items...`)
-
-    // Make sure toc items are in order by y-position; for some reason, the `.all()`
-    // above doesn't always retain the document ordering.
-    const $tocTopLevelItems2 = await Promise.all(
-      $tocTopLevelItems.map(async (tocItem) => {
-        const bbox = await tocItem.boundingBox()
-        return { tocItem, bbox }
-      })
-    )
-
-    $tocTopLevelItems2.sort((a, b) => a.bbox!.y - b.bbox!.y)
-    const $tocTopLevelItems3 = $tocTopLevelItems2.map(({ tocItem }) => tocItem)
-
-    // Loop through each TOC item and extract the page number and title.
-    for (const $tocItem of $tocTopLevelItems3) {
-      const label = (await $tocItem.textContent())?.trim()
-      if (!label) continue
-
-      await $tocItem.click()
-      await delay(10)
-
-      const pageNav = await getPageNav()
-      assert(pageNav)
-
-      const currentTocItem: TocItem = {
-        label,
-        depth: 0,
-        ...pageNav
-      }
-      tocItems.push(currentTocItem)
-      console.warn(currentTocItem)
-
-      // if (pageNav.page !== undefined) {
-      //   // TODO: this assumes the toc items are in order and contiguous...
-      //   if (pageNav.page >= pageNav.total) {
-      //     break
-      //   }
-      // }
-
-      const subTocItems = await $tocItem
-        .locator(' + .show-children ion-item')
-        .all()
-
-      if (subTocItems.length > 0) {
-        console.warn(`${label}: found ${subTocItems.length} sub-TOC items...`)
-
-        for (const $subTocItem of subTocItems) {
-          const label = await $subTocItem.textContent()
-          assert(label)
-
-          await $subTocItem.click()
-          await delay(10)
-
-          const pageNav = await getPageNav()
-          assert(pageNav)
-
-          tocItems.push({
-            label,
-            depth: 1,
-            ...pageNav
-          })
-
-          console.warn(currentTocItem.label, '=> sub-toc', {
-            label,
-            ...pageNav
-          })
-        }
-      }
-    }
-
-    result.toc = tocItems
-
-    // Close the table of contents modal
-    await page.locator('.side-menu-close-button').click()
-    await delay(500)
-
-    // Navigate to the first content page of the book
-    // await parsedToc.firstContentPageTocItem.locator!.click()
-  }
-
-  const parsedToc = parseTocItems(result.toc)
-
-  const totalPages = parsedToc.firstContentPageTocItem.total
-  const totalContentPages = Math.min(
-    parsedToc.firstPostContentPageTocItem?.page ?? totalPages,
-    totalPages
+  result.nav.startContentPosition = result.meta.startPosition
+  result.nav.totalNumPages = result.locationMap.navigationUnit.reduce(
+    (acc, navUnit) => {
+      return Math.max(acc, navUnit.page ?? -1)
+    },
+    -1
   )
-  assert(totalContentPages > 0, 'No content pages found')
-  const pageNumberPaddingAmount = `${totalContentPages * 2}`.length
+  assert(result.nav.totalNumPages > 0, 'parsed book nav has no pages')
+  result.nav.startContentPage = getPageForPosition(
+    result.nav.startContentPosition
+  )
+
+  const parsedToc = parseTocItems(result.toc, {
+    totalNumPages: result.nav.totalNumPages
+  })
+  result.nav.endContentPage =
+    parsedToc.firstPostContentPageTocItem?.page ?? result.nav.totalNumPages
+  result.nav.endContentPosition =
+    parsedToc.firstPostContentPageTocItem?.positionId ?? result.nav.endPosition
+
+  result.nav.totalNumContentPages = Math.min(
+    parsedToc.firstPostContentPageTocItem?.page ?? result.nav.totalNumPages,
+    result.nav.totalNumPages
+  )
+  assert(result.nav.totalNumContentPages > 0, 'No content pages found')
+  const pageNumberPaddingAmount = `${result.nav.totalNumContentPages * 2}`
+    .length
   await writeResultMetadata()
 
   // Navigate to the first content page of the book
-  await goToPage(parsedToc.firstContentPageTocItem.page! ?? 1)
+  await goToPage(result.nav.startContentPage)
 
-  let maxPageSeen = -1
+  // let maxPageSeen = -1
   let done = false
   console.warn(
-    `\nreading ${totalContentPages} content pages out of ${totalPages} total pages...\n`
+    `\nreading ${result.nav.totalNumContentPages} content pages out of ${result.nav.totalNumPages} total pages...\n`
   )
 
   // Loop through each page of the book
@@ -458,16 +466,18 @@ async function main() {
       break
     }
 
-    if (pageNav.page > totalContentPages) {
+    if (pageNav.page > result.nav.totalNumContentPages) {
       break
     }
 
-    if (pageNav.page < maxPageSeen) {
-      break
-    }
+    // TODO: this doesn't technically work since page ordering is not guaranteed
+    // to monotonically increase w.r.t. position ordering.
+    // if (pageNav.page < maxPageSeen) {
+    //   break
+    // }
+    // maxPageSeen = Math.max(maxPageSeen, pageNav.page)
 
     const index = result.pages.length
-    maxPageSeen = Math.max(maxPageSeen, pageNav.page)
 
     const src = (await page
       .locator(krRendererMainImageSelector)
@@ -505,8 +515,8 @@ async function main() {
       const m = await c.metadata()
       renderedPageImageBuffer = await c
         .resize({
-          width: Math.floor(m.width / 2),
-          height: Math.floor(m.height / 2)
+          width: Math.floor(m.width / deviceScaleFactor),
+          height: Math.floor(m.height / deviceScaleFactor)
         })
         .png({ quality: 90 })
         .toBuffer()
@@ -533,7 +543,6 @@ async function main() {
     result.pages.push({
       index,
       page: pageNav.page,
-      total: pageNav.total,
       screenshot: screenshotPath
     })
     await writeResultMetadata()
@@ -593,7 +602,7 @@ async function main() {
 
   await writeResultMetadata()
   console.log()
-  console.log(JSON.stringify(result, null, 2))
+  console.log(metadataPath)
 
   if (initialPageNav?.page !== undefined) {
     console.warn(`resetting back to initial page ${initialPageNav.page}...`)

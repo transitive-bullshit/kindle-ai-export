@@ -4,7 +4,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import type { BookMetadata, ContentChunk } from './types'
-import { assert, getEnv } from './utils'
+import { assert, getEnv, readJsonFile } from './utils'
 
 async function main() {
   const asin = getEnv('ASIN')
@@ -12,12 +12,12 @@ async function main() {
 
   const outDir = path.join('out', asin)
 
-  const content = JSON.parse(
-    await fs.readFile(path.join(outDir, 'content.json'), 'utf8')
-  ) as ContentChunk[]
-  const metadata = JSON.parse(
-    await fs.readFile(path.join(outDir, 'metadata.json'), 'utf8')
-  ) as BookMetadata
+  const content = await readJsonFile<ContentChunk[]>(
+    path.join(outDir, 'content.json')
+  )
+  const metadata = await readJsonFile<BookMetadata>(
+    path.join(outDir, 'metadata.json')
+  )
   assert(content.length, 'no book content found')
   assert(metadata.meta, 'invalid book metadata: missing meta')
   assert(metadata.toc?.length, 'invalid book metadata: missing toc')
