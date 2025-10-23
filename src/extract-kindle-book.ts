@@ -300,22 +300,36 @@ async function main() {
   }
 
   async function updateSettings() {
-    await page.locator('ion-button[aria-label="Reader settings"]').click()
+    console.log('Looking for Reader settings button')
+    const settingsButton = page
+      .locator(
+        'ion-button[aria-label="Reader settings"], ' +
+          'button[aria-label="Reader settings"]'
+      )
+      .first()
+    await settingsButton.waitFor({ timeout: 30_000 })
+    console.log('Clicking Reader settings')
+    await settingsButton.click()
     await delay(500)
 
     // Change font to Amazon Ember
     // My hypothesis is that this font will be easier for OCR to transcribe...
     // TODO: evaluate different fonts & settings
+    console.log('Changing font to Amazon Ember')
     await page.locator('#AmazonEmber').click()
+    await delay(200)
 
     // Change layout to single column
+    console.log('Changing to single column layout')
     await page
       .locator('[role="radiogroup"][aria-label$=" columns"]', {
         hasText: 'Single Column'
       })
       .click()
+    await delay(200)
 
-    await page.locator('ion-button[aria-label="Reader settings"]').click()
+    console.log('Closing settings')
+    await settingsButton.click()
     await delay(500)
   }
 
@@ -410,6 +424,15 @@ async function main() {
   await ensureFixedHeaderUI()
   await updateSettings()
 
+  console.log('Waiting for book reader to load...')
+  await page
+    .waitForSelector(krRendererMainImageSelector, { timeout: 60_000 })
+    .catch(() => {
+      console.warn(
+        'Main reader content may not have loaded, continuing anyway...'
+      )
+    })
+
   // Record the initial page navigation so we can reset back to it later
   const initialPageNav = await getPageNav()
 
@@ -449,10 +472,15 @@ async function main() {
     .length
   await writeResultMetadata()
 
+  // 56 sections
+  // page => startPosition
+  // "startPositionId": 234954
+  // "endPositionId": 236216
+  // "wordsInPage": 269
+
   // Navigate to the first content page of the book
   await goToPage(result.nav.startContentPage)
 
-  // let maxPageSeen = -1
   let done = false
   console.warn(
     `\nreading ${result.nav.totalNumContentPages} content pages out of ${result.nav.totalNumPages} total pages...\n`
@@ -469,13 +497,6 @@ async function main() {
     if (pageNav.page > result.nav.totalNumContentPages) {
       break
     }
-
-    // TODO: this doesn't technically work since page ordering is not guaranteed
-    // to monotonically increase w.r.t. position ordering.
-    // if (pageNav.page < maxPageSeen) {
-    //   break
-    // }
-    // maxPageSeen = Math.max(maxPageSeen, pageNav.page)
 
     const index = result.pages.length
 
@@ -610,7 +631,6 @@ async function main() {
     await goToPage(initialPageNav.page)
   }
 
-  // await page.close()
   await context.close()
   await context.browser()?.close()
 }
