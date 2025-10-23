@@ -65,12 +65,13 @@ async function main() {
   let needsNewPage = false
   let index = 0
 
-  for (let i = 0; i < metadata.toc.length - 1; i++) {
+  for (let i = 0; i < metadata.toc.length; i++) {
     const tocItem = metadata.toc[i]!
     if (tocItem.page === undefined) continue
 
-    const nextTocItem = metadata.toc[i + 1]!
-    const nextIndex = nextTocItem.page
+    // Find the next TOC item's page to determine chapter boundary
+    const nextTocItem = metadata.toc[i + 1]
+    const nextIndex = nextTocItem?.page
       ? content.findIndex((c) => c.page >= nextTocItem.page!)
       : content.length
     if (nextIndex < index) continue
