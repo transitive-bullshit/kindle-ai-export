@@ -252,11 +252,19 @@ async function main() {
       // Only enter 2-factor auth code if needed
       if (code) {
         await page.locator('input[type="tel"]').fill(code)
-        await page
+
+        // Try multiple possible selectors for the submit button
+        const submitButton = page
           .locator(
-            'input[type="submit"][aria-labelledby="cvf-submit-otp-button-announce"]'
+            'input[type="submit"][aria-labelledby="cvf-submit-otp-button-announce"], ' +
+              'input[type="submit"]#cvf-submit-otp-button, ' +
+              'input[type="submit"][name="cvf-submit-otp-button"], ' +
+              'button[type="submit"], ' +
+              'input[type="submit"]'
           )
-          .click()
+          .first()
+
+        await submitButton.click()
       }
     }
 
