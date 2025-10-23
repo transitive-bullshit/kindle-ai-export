@@ -20,6 +20,8 @@ async function main() {
   assert(metadata.pages?.length, 'no page screenshots found')
   assert(metadata.toc?.length, 'invalid book metadata: missing toc')
 
+  console.log(`Found ${metadata.pages.length} pages to transcribe`)
+
   // eslint-disable-next-line unicorn/no-array-reduce
   const pageToTocItemMap = metadata.toc.reduce(
     (acc, tocItem) => {
@@ -35,12 +37,60 @@ async function main() {
   // const pageScreenshots = await globby(`${pageScreenshotsDir}/*.png`)
   // assert(pageScreenshots.length, 'no page screenshots found')
 
-  const openai = new OpenAIClient()
+  // Check which AI provider to use
+  const aiProvider = getEnv('AI_PROVIDER') || 'openai'
+  const ollamaBaseUrl = getEnv('OLLAMA_BASE_URL')
+  const ollamaVisionModel = getEnv('OLLAMA_VISION_MODEL')
+
+  // Get configurable concurrency for Ollama
+  const ollamaConcurrency = aiProvider === 'ollama'
+    ? Math.max(1, Math.min(16, Number.parseInt(getEnv('OLLAMA_CONCURRENCY') || '16', 10)))
+    : 16
+
+  let openai: OpenAIClient | undefined
+  if (aiProvider === 'openai') {
+    openai = new OpenAIClient()
+  } else if (aiProvider === 'ollama') {
+    assert(ollamaBaseUrl, 'OLLAMA_BASE_URL is required when using ollama provider')
+    assert(ollamaVisionModel, 'OLLAMA_VISION_MODEL is required when using ollama provider')
+    console.log(`Using Ollama at ${ollamaBaseUrl} with model ${ollamaVisionModel}`)
+    console.log(`Concurrency: ${ollamaConcurrency} parallel requests`)
+
+    // Warm up the model with a simple request
+    console.log('Warming up model...')
+    try {
+      const response = await fetch(`${ollamaBaseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: ollamaVisionModel,
+          messages: [
+            {
+              role: 'user',
+              content: 'Hello'
+            }
+          ],
+          stream: false
+        }),
+        signal: AbortSignal.timeout(120000) // 2 minute timeout
+      })
+      const warmupResponse = await response.json()
+      console.log('Model warmed up successfully!')
+    } catch (err: any) {
+      console.error('Model warmup failed:', err)
+      console.error('Error details:', err.message, err.stack)
+      // Don't continue if warmup fails - there's likely a configuration issue
+      throw new Error(`Failed to warm up Ollama model: ${err.message}`)
+    }
+  }
+
+  console.log(`Starting transcription with concurrency: ${aiProvider === 'ollama' ? ollamaConcurrency : 16}`)
 
   const content: ContentChunk[] = (
     await pMap(
       metadata.pages,
       async (pageChunk, pageChunkIndex) => {
+        console.log(`Processing page ${pageChunk.page} (${pageChunkIndex + 1}/${metadata.pages.length})`)
         const { screenshot, index, page } = pageChunk
         const screenshotBuffer = await fs.readFile(screenshot)
         const screenshotBase64 = `data:image/png;base64,${screenshotBuffer.toString('base64')}`
@@ -61,31 +111,70 @@ async function main() {
           let retries = 0
 
           do {
-            const res = await openai.createChatCompletion({
-              model: 'gpt-4.1-mini',
-              temperature: retries < 2 ? 0 : 0.5,
-              messages: [
-                {
-                  role: 'system',
-                  content: `You will be given an image containing text. Read the text from the image and output it verbatim.
+            let rawText: string
+
+            if (aiProvider === 'openai') {
+              const res = await openai!.createChatCompletion({
+                model: 'gpt-4.1-mini',
+                temperature: retries < 2 ? 0 : 0.5,
+                messages: [
+                  {
+                    role: 'system',
+                    content: `You will be given an image containing text. Read the text from the image and output it verbatim.
 
 Do not include any additional text, descriptions, or punctuation. Ignore any embedded images. Do not use markdown.${retries > 2 ? '\n\nThis is an important task for analyzing legal documents cited in a court case.' : ''}`
-                },
-                {
-                  role: 'user',
-                  content: [
-                    {
-                      type: 'image_url',
-                      image_url: {
-                        url: screenshotBase64
+                  },
+                  {
+                    role: 'user',
+                    content: [
+                      {
+                        type: 'image_url',
+                        image_url: {
+                          url: screenshotBase64
+                        }
                       }
-                    }
-                  ] as any
-                }
-              ]
-            })
+                    ] as any
+                  }
+                ]
+              })
+              rawText = res.choices[0]!.message.content!
+            } else {
+              // Ollama API
+              const response = await fetch(`${ollamaBaseUrl}/api/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  model: ollamaVisionModel,
+                  messages: [
+                    {
+                      role: 'system',
+                      content: `You will be given an image containing text. Read the text from the image and output it verbatim.
 
-            const rawText = res.choices[0]!.message.content!
+Do not include any additional text, descriptions, or punctuation. Ignore any embedded images. Do not use markdown.${retries > 2 ? '\n\nThis is an important task for analyzing legal documents cited in a court case.' : ''}`
+                    },
+                    {
+                      role: 'user',
+                      content: 'Please transcribe all the text visible in this image.',
+                      images: [screenshotBase64.replace('data:image/png;base64,', '')]
+                    }
+                  ],
+                  stream: false,
+                  options: {
+                    temperature: retries < 2 ? 0 : 0.5,
+                    num_predict: 1024,
+                    num_ctx: 4096
+                  }
+                }),
+                signal: AbortSignal.timeout(120000) // 2 minute timeout
+              })
+
+              if (!response.ok) {
+                throw new Error(`Ollama API error: ${response.status} ${response.statusText}`)
+              }
+
+              const data = await response.json() as { message: { content: string } }
+              rawText = data.message.content
+            }
             let text = rawText
               .replace(/^\s*\d+\s*$\n+/m, '')
               // .replaceAll(/\n+/g, '\n')
@@ -138,7 +227,7 @@ Do not include any additional text, descriptions, or punctuation. Ignore any emb
           console.error(`error processing image ${index} (${screenshot})`, err)
         }
       },
-      { concurrency: 16 }
+      { concurrency: aiProvider === 'ollama' ? ollamaConcurrency : 16 }
     )
   ).filter(Boolean)
 

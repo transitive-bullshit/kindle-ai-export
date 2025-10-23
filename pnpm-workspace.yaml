@@ -6,5 +6,7 @@ onlyBuiltDependencies:
   - esbuild
   - sharp
   - simple-git-hooks
+  - tesseract.js
+  - unrealspeech-api
 
 packageManagerStrict: false
