@@ -16,6 +16,8 @@
   - [Setup Env Vars](#setup-env-vars)
   - [Extract Kindle Book](#extract-kindle-book)
   - [Transcribe Book Content](#transcribe-book-content)
+  - [(Optional) Validate Content](#optional-validate-content)
+  - [(Optional) Clean Content with Ollama](#optional-clean-content-with-ollama)
   - [(Optional) Export Book as PDF](#optional-export-book-as-pdf)
   - [(Optional) Export Book as EPUB](#optional-export-book-as-epub)
   - [(Optional) Export Book as Markdown](#optional-export-book-as-markdown)
@@ -28,13 +30,13 @@
 
 ## Intro
 
-This project makes it easy to export the contents of any ebook in your Kindle library as text, PDF, EPUB, or as a custom, AI-narrated audiobook. It only requires a valid Amazon Kindle account and an OpenAI API key.
+This project makes it easy to export the contents of any ebook in your Kindle library as text, PDF, EPUB, or as a custom, AI-narrated audiobook. It requires a valid Amazon Kindle account and either an OpenAI API key or a local Ollama installation.
 
 _You must own the ebook on Kindle for this project to work._
 
 ### How does it work?
 
-It works by logging into your [Kindle web reader](https://read.amazon.com) account using [Playwright](https://playwright.dev), exporting each page of a book as a PNG image, and then using a vLLM (`gpt-4o` or `gpt-4o-mini`) to transcribe the text from each page to text. Once we have the raw book contents and metadata, then it's easy to convert it to PDF, EPUB, etc. 🔥
+It works by logging into your [Kindle web reader](https://read.amazon.com) account using [Playwright](https://playwright.dev), exporting each page of a book as a PNG image, and then using either a vLLM (OpenAI's `gpt-4o`/`gpt-4o-mini` or Ollama vision models) to transcribe the text from each page. Once we have the raw book contents and metadata, then it's easy to convert it to PDF, EPUB, etc. 🔥
 
 This [example](./examples/B0819W19WD) uses the first page of the scifi book [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds):
 
@@ -153,11 +155,15 @@ Make sure you have `node >= 18` and [pnpm](https://pnpm.io) installed.
 2. Run `pnpm install`
 3. Set up environment variables ([details](#setup-env-vars))
 4. Run `src/extract-kindle-book.ts` ([details](#extract-kindle-book))
-5. Run `src/transcribe-book-content.ts` ([details](#transcribe-book-content))
-6. (Optional) Run `src/export-book-pdf.ts` ([details](#optional-export-book-as-pdf))
-7. (Optional) Export book as EPUB ([details](#optional-export-book-as-epub))
-8. (Optional) Run `src/export-book-markdown.ts` ([details](#optional-export-book-as-markdown))
-9. (Optional) Run `src/export-book-audio.ts` ([details](#optional-export-book-as-ai-narrated-audiobook-))
+5. Transcribe the book content using one of these options:
+   - **Option A**: Run `src/transcribe-book-content.ts` for AI vision models ([details](#transcribe-book-content))
+   - **Option B**: Run `src/ocr-transcribe-book-content.ts` for free local OCR ([details](#transcribe-book-content))
+6. (Optional) Run `src/validate-content.ts` to check for OCR errors ([details](#optional-validate-content))
+7. (Optional) Run `src/clean-content-with-ollama.ts` to clean up text formatting ([details](#optional-clean-content-with-ollama))
+8. (Optional) Run `src/export-book-pdf.ts` ([details](#optional-export-book-as-pdf))
+9. (Optional) Export book as EPUB ([details](#optional-export-book-as-epub))
+10. (Optional) Run `src/export-book-markdown.ts` ([details](#optional-export-book-as-markdown))
+11. (Optional) Run `src/export-book-audio.ts` ([details](#optional-export-book-as-ai-narrated-audiobook-))
 
 ### Setup Env Vars
 
@@ -168,10 +174,28 @@ AMAZON_EMAIL=
 AMAZON_PASSWORD=
 ASIN=
 
+# Option 1: Using OpenAI (default)
+AI_PROVIDER=openai
 OPENAI_API_KEY=
+
+# Option 2: Using Ollama (Local/Self-hosted)
+# Uncomment these lines and comment out OPENAI_API_KEY to use Ollama
+# AI_PROVIDER=ollama
+# OLLAMA_BASE_URL=http://localhost:11434
+# OLLAMA_VISION_MODEL=qwen2.5vl:7b  # For vision/OCR transcription
+# OLLAMA_MODEL=llama3.2  # For text cleaning with clean-content-with-ollama.ts
+# OLLAMA_CONCURRENCY=16
+
+# Option 3: Using Tesseract.js OCR (free, local, no API needed)
+# OCR_CONCURRENCY=4  # Number of parallel workers (default: 4)
 ```
 
 You can find your book's [ASIN](https://en.wikipedia.org/wiki/Amazon_Standard_Identification_Number) (Amazon ID) by visiting [read.amazon.com](https://read.amazon.com) and clicking on the book you want to export. The resulting URL will look like `https://read.amazon.com/?asin=B0819W19WD&ref_=kwl_kr_iv_rec_2`, with `B0819W19WD` being the ASIN in this case.
+
+**For Ollama users**: Make sure you have a vision-capable model installed. Recommended models:
+- `qwen2.5vl:7b` - Recommended, good balance of speed and quality
+- `qwen2.5vl:32b` - Higher quality but slower
+- `llama3.2-vision:latest` - Alternative option
 
 ### Extract Kindle Book
 
@@ -197,15 +221,58 @@ npx tsx src/extract-kindle-book.ts
 
 ### Transcribe Book Content
 
+#### Option A: Using AI Vision Models (Recommended)
+
 ```sh
 npx tsx src/transcribe-book-content.ts
 ```
 
 - _(This takes a few minutes to run)_
-- This takes each of the page screenshots and runs them through a vLLM (`gpt-4o` or `gpt-4o-mini`) to extract the raw text content from each page of the book.
-- It then stitches these text chunks together, taking into account chapter boundaries.
-- The result is stored as JSON to `out/${asin}/content.json`.
+- This takes each of the page screenshots and runs them through a vision model to extract the raw text content from each page
+- Supports both OpenAI (`gpt-4o`/`gpt-4o-mini`) and Ollama (local vision models)
+- It then stitches these text chunks together, taking into account chapter boundaries
+- The result is stored as JSON to `out/${asin}/content.json`
 - Example: [examples/B0819W19WD/content.json](./examples/B0819W19WD/content.json)
+
+#### Option B: Using OCR with Tesseract.js (Alternative)
+
+```sh
+npx tsx src/ocr-transcribe-book-content.ts
+```
+
+- Fast, free, and runs entirely locally without any API calls
+- Uses Tesseract.js for optical character recognition
+- May have slightly lower accuracy than vision models on complex layouts
+- Supports configurable concurrency via `OCR_CONCURRENCY` env variable (default: 4)
+- The result is stored to the same `out/${asin}/content.json` file
+
+### (Optional) Validate Content
+
+After transcription, you can check for OCR errors:
+
+```sh
+npx tsx src/validate-content.ts
+```
+
+- Checks for common OCR issues like repetitive text, excessive punctuation, or empty pages
+- Generates a validation report showing errors and warnings
+- Saves the report to `out/${asin}/validation-report.json`
+- Useful for identifying pages that may need manual correction
+
+### (Optional) Clean Content with Ollama
+
+Use Ollama's text models to clean up formatting issues in the transcribed content:
+
+```sh
+npx tsx src/clean-content-with-ollama.ts
+```
+
+- Uses Ollama's text models (like `llama3.2`) to improve text formatting
+- Fixes paragraph breaks and removes excessive whitespace
+- Preserves original words exactly (no spelling/grammar changes)
+- Requires `OLLAMA_MODEL` environment variable (defaults to `llama3.2`)
+- Saves cleaned content to `out/${asin}/content-cleaned.json`
+- Creates a backup of the original at `out/${asin}/content-original.json`
 
 ### (Optional) Export Book as PDF
 
