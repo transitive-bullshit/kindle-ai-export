@@ -472,12 +472,6 @@ async function main() {
     .length
   await writeResultMetadata()
 
-  // 56 sections
-  // page => startPosition
-  // "startPositionId": 234954
-  // "endPositionId": 236216
-  // "wordsInPage": 269
-
   // Navigate to the first content page of the book
   await goToPage(result.nav.startContentPage)
 
@@ -561,14 +555,14 @@ async function main() {
     )
 
     await fs.writeFile(screenshotPath, renderedPageImageBuffer)
-    result.pages.push({
+    const pageChunk = {
       index,
       page: pageNav.page,
       screenshot: screenshotPath
-    })
+    }
+    result.pages.push(pageChunk)
+    console.warn(pageChunk)
     await writeResultMetadata()
-
-    console.warn(result.pages.at(-1))
 
     let retries = 0
 
@@ -613,7 +607,7 @@ async function main() {
         break
       }
 
-      if (++retries >= 10) {
+      if (++retries >= 30) {
         console.warn('unable to navigate to next page; breaking...', pageNav)
         done = true
         break
