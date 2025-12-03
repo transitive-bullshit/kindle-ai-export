@@ -30,6 +30,99 @@ import {
   tryReadJsonFile
 } from './utils'
 
+const TIME = {
+  otpVisible: 120_000,
+  navOpen: 30_000,
+  click: 1000,
+  menuOpen: 10_000,
+  footerSample: 150,
+  imgChangeWait: 1200,
+  finalWait: 6000
+} as const
+
+const SEL = {
+  mainImg: '#kr-renderer .kg-full-page-img img',
+  footerTitle: 'ion-footer ion-title',
+  chevronRight: '.kr-chevron-container-right',
+  chevronLeft: '.kr-chevron-container-left',
+  readerHeader: '#reader-header, .top-chrome, ion-toolbar',
+  tocItems: 'ion-list ion-item'
+} as const
+
+// Helper used to avoid declaring functions inside loops (fixes no-loop-func)
+async function captureMainImageBuffer(page: Page): Promise<Buffer> {
+  return withCleanCapture(
+    page,
+    () =>
+      page
+        .locator(SEL.mainImg)
+        .screenshot({ type: 'png', scale: 'css' }) as Promise<Buffer>
+  )
+}
+
+// Serializable function for .evaluate to avoid inline lambdas inside loops
+function getImageDims(img: HTMLImageElement) {
+  return {
+    naturalWidth: img.naturalWidth || 0,
+    naturalHeight: img.naturalHeight || 0,
+    cssWidth: (img as any).width || (img as any).clientWidth || 0,
+    cssHeight: (img as any).height || (img as any).clientHeight || 0
+  }
+}
+
+function getReaderScope(page: Page): Page {
+  return (page.frame({ url: /read\.amazon\./ }) ||
+    page.mainFrame()) as unknown as Page
+}
+
+async function withCleanCapture<T>(
+  page: Page,
+  fn: () => Promise<T>
+): Promise<T> {
+  const styleEl = await page
+    .addStyleTag({
+      content:
+        '.top-chrome, ion-toolbar, ion-footer { opacity: 0 !important; } ion-popover, ion-modal { display: none !important; }'
+    })
+    .catch(() => null)
+  try {
+    return await fn()
+  } finally {
+    if (styleEl) {
+      await styleEl
+        .evaluate((el: Element) => {
+          ;(el as HTMLElement).remove()
+        })
+        .catch(() => {})
+    }
+  }
+}
+
+// eslint-disable-next-line no-process-env
+const DEBUG_KINDLE = process.env.DEBUG_KINDLE === '1'
+// eslint-disable-next-line no-process-env
+const LOG_FOOTER = process.env.LOG_FOOTER === '1'
+// eslint-disable-next-line no-process-env
+const SKIP_RESET_FLAG = process.env.SKIP_RESET === '1'
+const DBG = DEBUG_KINDLE
+function dlog(...args: any[]) {
+  if (DBG) console.warn(new Date().toISOString(), '-', ...args)
+}
+function short(v?: string | null) {
+  if (!v) return String(v)
+  try {
+    const u = new URL(v)
+    return `${u.pathname.split('/').pop()}`
+  } catch {
+    return v.length > 64 ? v.slice(0, 64) + '…' : v
+  }
+}
+
+interface PageNav {
+  page?: number
+  location?: number
+  total: number
+}
 // Block amazon analytics requests
 // (not strictly necessary, but adblockers do this by default anyway and it
 // makes the script run a bit faster)
@@ -41,6 +134,85 @@ const urlRegexBlacklist = [
 
 type RENDER_METHOD = 'screenshot' | 'blob'
 const renderMethod: RENDER_METHOD = 'blob'
+
+async function completeOtpFlow(page: Page, code: string) {
+  // Wait for any known OTP input to appear (Amazon uses several variants)
+  const otpInput = page.locator(
+    'input#cvf-input-code, input[name="code"], input[type="tel"]'
+  )
+  await otpInput.waitFor({ state: 'visible', timeout: TIME.otpVisible })
+
+  await otpInput.fill(code)
+
+  // Try the common submit buttons first, then fall back to pressing Enter
+  const submitCandidates = [
+    'input#cvf-submit-otp-button',
+    'input[type="submit"][aria-labelledby="cvf-submit-otp-button-announce"]',
+    'button[name="verifyCode"]'
+  ]
+
+  let clicked = false
+  for (const sel of submitCandidates) {
+    const btn = page.locator(sel)
+    if (await btn.isVisible()) {
+      await btn.click()
+      clicked = true
+      break
+    }
+  }
+
+  if (!clicked) {
+    const byRole = page.getByRole('button', { name: /verify|submit|continue/i })
+    if (await byRole.isVisible()) {
+      await byRole.click()
+      clicked = true
+    }
+  }
+
+  if (!clicked) {
+    await otpInput.press('Enter')
+  }
+
+  // Some accounts show a "remember this device" step; handle it if present
+  const rememberCheckbox = page.locator(
+    'input[name="rememberDevice"], input#auth-mfa-remember-device'
+  )
+  if (await rememberCheckbox.isVisible()) {
+    await rememberCheckbox.check().catch(() => {})
+    const rememberSubmit = page.locator(
+      'input#cvf-submit-remember-device, input[type="submit"][aria-labelledby="cvf-submit-remember-device-announce"]'
+    )
+    if (await rememberSubmit.isVisible()) {
+      await rememberSubmit.click()
+    } else {
+      await page
+        .getByRole('button', { name: /continue|submit/i })
+        .click()
+        .catch(() => {})
+    }
+  }
+
+  // Wait for navigation away from the CVF (challenge) page
+  await Promise.race([
+    page
+      .waitForURL(/read\.amazon\.[^/]+\//, { timeout: 60_000 })
+      .catch(() => {}),
+    page.waitForURL(/kindle-library/, { timeout: 60_000 }).catch(() => {}),
+    page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+  ])
+}
+
+async function getFooterRaw(page: Page) {
+  try {
+    const t = await page
+      .locator(SEL.footerTitle)
+      .first()
+      .textContent({ timeout: 2000 })
+    return (t || '').trim()
+  } catch {
+    return ''
+  }
+}
 
 async function main() {
   const asin = getEnv('ASIN')
@@ -211,8 +383,6 @@ async function main() {
           // console.warn('toc', toc)
         }
       }
-    } catch {}
-  })
 
   // Only used for the 'blob' render method
   const capturedBlobs = new Map<
@@ -276,30 +446,187 @@ async function main() {
     await page.locator('input[type="email"]').fill(amazonEmail)
     await page.locator('input[type="submit"]').click()
 
-    await page.locator('input[type="password"]').fill(amazonPassword)
-    // await page.locator('input[type="checkbox"]').click()
-    await page.locator('input[type="submit"]').click()
+    // Note: Playwright's Frame and Page share the `locator` and `getByRole` APIs used here.
+    async function updateSettings() {
+      const scope = getReaderScope(page)
 
-    if (!/\/kindle-library/g.test(new URL(page.url()).pathname)) {
-      const code = await input({
-        message: '2-factor auth code?'
-      })
+      // Make sure the reader UI is actually visible; toolbars auto-hide
+      await scope.waitForLoadState?.('domcontentloaded').catch(() => {})
+      await delay(500)
 
-      // Only enter 2-factor auth code if needed
-      if (code) {
-        await page.locator('input[type="tel"]').fill(code)
-        await page
-          .locator(
-            'input[type="submit"][aria-labelledby="cvf-submit-otp-button-announce"]'
-          )
-          .click()
+      // Nudge the header/toolbar to appear
+      try {
+        await page.locator(SEL.readerHeader).first().hover({ force: true })
+      } catch {}
+      try {
+        await page.mouse.move(50, 50)
+      } catch {}
+
+      // Candidate locators for the settings button (label varies: "Reader settings", "Aa", etc.)
+      // Overlay/panel that appears when settings are open (best-effort across UIs)
+      const settingsOverlay = scope.locator?.(
+        'ion-popover, ion-modal, [role="dialog"], .reader-settings'
+      )
+      const candidates = [
+        scope.getByRole?.('button', { name: /reader settings/i } as any),
+        scope.getByRole?.('button', { name: /^aa$/i } as any),
+        scope.locator?.('ion-button[title="Reader settings"]'),
+        scope.locator?.('button[title="Reader settings"]'),
+        scope.locator?.('ion-button[title="Aa"]'),
+        scope.locator?.(
+          '[data-testid="reader-settings"], [aria-label="Reader settings"]'
+        )
+      ].filter(Boolean) as Locator[]
+
+      let clicked = false
+      const deadline = Date.now() + 30_000
+
+      // Keep trying until one becomes visible or we time out
+      while (!clicked && Date.now() < deadline) {
+        for (const cand of candidates) {
+          if (await cand.isVisible().catch(() => false)) {
+            await cand.click({ timeout: 2000 }).catch(() => {})
+            clicked = true
+            break
+          }
+        }
+        if (!clicked) {
+          // Re-hover the header to keep toolbar visible
+          await page
+            .locator(SEL.readerHeader)
+            .first()
+            .hover({ force: true })
+            .catch(() => {})
+          await delay(300)
+        }
       }
+
+      if (!clicked) {
+        await page
+          .screenshot({ path: 'reader-settings-timeout.png', fullPage: true })
+          .catch(() => {})
+        throw new Error(
+          'Could not find the Reader Settings button. Saved screenshot: reader-settings-timeout.png'
+        )
+      }
+
+      await delay(800)
+
+      // Change font to Amazon Ember (best-effort across UIs)
+      const ember = scope.locator?.(
+        '#AmazonEmber, [data-font="Amazon Ember"], button:has-text("Amazon Ember")'
+      )
+      if (ember) {
+        await ember
+          .first()
+          .click({ timeout: 2000 })
+          .catch(() => {})
+      }
+
+      // Change layout to single column (label text can vary)
+      const singleColGroup = scope.locator?.(
+        '[role="radiogroup"][aria-label$=" columns"]'
+      )
+      if (singleColGroup) {
+        await singleColGroup
+          .filter({ hasText: /single column/i })
+          .first()
+          .click({ timeout: 2000 })
+          .catch(() => {})
+      } else {
+        await scope
+          .getByRole?.('radio', { name: /single column/i } as any)
+          .click({ timeout: 2000 })
+          .catch(() => {})
+      }
+
+      // Give the UI a moment to apply changes before we try to close it
+      await delay(200)
+
+      // Close settings (toggle Aa or click the same button again)
+      const closeSettings = [
+        scope.locator?.('ion-button[title="Reader settings"]'),
+        scope.locator?.('button[title="Reader settings"]'),
+        scope.getByRole?.('button', { name: /^aa$/i } as any)
+      ].filter(Boolean) as Locator[]
+
+      let closed = false
+      for (const c of closeSettings) {
+        if (await c.isVisible().catch(() => false)) {
+          await c.click({ timeout: 2000 }).catch(() => {})
+          // Wait briefly to see if overlay disappears
+          if (
+            settingsOverlay &&
+            (await settingsOverlay
+              .first()
+              .isVisible()
+              .catch(() => false))
+          ) {
+            await settingsOverlay
+              .first()
+              .waitFor({ state: 'hidden', timeout: 1000 })
+              .catch(() => {})
+          }
+          closed = true
+          break
+        }
+      }
+
+      // Fallback: force-close via Escape or clicking outside
+      const closeDeadline = Date.now() + 3000
+      while (
+        settingsOverlay &&
+        (await settingsOverlay
+          .first()
+          .isVisible()
+          .catch(() => false)) &&
+        Date.now() < closeDeadline
+      ) {
+        await page.keyboard.press('Escape').catch(() => {})
+        await delay(150)
+        if (
+          await settingsOverlay
+            .first()
+            .isVisible()
+            .catch(() => false)
+        ) {
+          // Click outside the overlay to dismiss if possible
+          await page.mouse.click(10, 10).catch(() => {})
+          await delay(150)
+        }
+        if (!closed) {
+          // Try toggling the Aa/settings button again
+          for (const c of closeSettings) {
+            if (await c.isVisible().catch(() => false)) {
+              await c.click({ timeout: 1000 }).catch(() => {})
+              break
+            }
+          }
+        }
+      }
+
+      // Final safety: ensure overlay is hidden before proceeding
+      if (
+        settingsOverlay &&
+        (await settingsOverlay
+          .first()
+          .isVisible()
+          .catch(() => false))
+      ) {
+        await page
+          .screenshot({ path: 'settings-stuck.png', fullPage: true })
+          .catch(() => {})
+        throw new Error(
+          'Reader Settings panel did not close. Saved screenshot: settings-stuck.png'
+        )
+      }
+
+      await delay(300)
     }
 
     if (!page.url().includes(bookReaderUrl)) {
       await page.goto(bookReaderUrl)
     }
-  }
 
   async function updateSettings() {
     console.log('Looking for Reader settings button')
@@ -353,20 +680,23 @@ async function main() {
     await delay(500)
   }
 
-  async function getPageNav() {
-    const footerText = await page
-      .locator('ion-footer ion-title')
-      .first()
-      .textContent()
-    return parsePageNav(footerText)
-  }
+          const stepped = await stepOnce(direction, currentNav)
+          if (!stepped?.page || stepped.page === currentNav.page) {
+            throw new Error(
+              `LOCATION_MODE: unable to step ${direction} toward ${pageNumber}; last page ${currentNav.page}`
+            )
+          }
+          currentNav = stepped
+          iterations++
+        }
 
-  async function ensureFixedHeaderUI() {
-    await page.locator('.top-chrome').evaluate((el) => {
-      el.style.transition = 'none'
-      el.style.transform = 'none'
-    })
-  }
+        if (currentNav?.page !== pageNumber) {
+          throw new Error(
+            `LOCATION_MODE: failed to reach location ${pageNumber}; last seen ${currentNav?.page ?? 'unknown'}`
+          )
+        }
+        return
+      }
 
   async function dismissPossibleAlert() {
     const $alertNo = page.locator('ion-alert button', { hasText: 'No' })
@@ -566,7 +896,10 @@ async function main() {
     console.warn(pageChunk)
     await writeResultMetadata()
 
-    let retries = 0
+    const parsedToc = parseTocItems(tocSamples)
+    const toc: TocItem[] = tocSamples.map(
+      ({ locator: _, ...tocItem }) => tocItem
+    )
 
     do {
       // This delay seems to help speed up the navigation process, possibly due
@@ -621,11 +954,9 @@ async function main() {
   console.log()
   console.log(metadataPath)
 
-  if (initialPageNav?.page !== undefined) {
-    console.warn(`resetting back to initial page ${initialPageNav.page}...`)
-    // Reset back to the initial page
-    await goToPage(initialPageNav.page)
-  }
+        await delay(120)
+        retries++
+      } while (retries < maxRetries)
 
   await context.close()
   await context.browser()?.close()
