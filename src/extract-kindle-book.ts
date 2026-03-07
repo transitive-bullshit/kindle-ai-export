@@ -336,21 +336,52 @@ async function main() {
   }
 
   async function goToPage(pageNumber: number) {
-    await page.locator('#reader-header').hover({ force: true })
-    await delay(200)
-    await page.locator('ion-button[aria-label="Reader menu"]').click()
-    await delay(500)
-    await page
-      .locator('ion-item[role="listitem"]', { hasText: 'Go to Page' })
-      .click()
-    await page
-      .locator('ion-modal input[placeholder="page number"]')
-      .fill(`${pageNumber}`)
-    // await page.locator('ion-modal button', { hasText: 'Go' }).click()
-    await page
-      .locator('ion-modal ion-button[item-i-d="go-to-modal-go-button"]')
-      .click()
-    await delay(500)
+    try {
+      await page.locator('#reader-header').hover({ force: true })
+      await delay(200)
+      // Open the three-dot menu (top-right)
+      const menuButton = page
+        .locator('ion-button[aria-label="Reader menu"]')
+        .or(page.locator('button[aria-label="Reader menu"]'))
+        .or(page.locator('#reader-header button').last())
+      await menuButton.first().click({ timeout: 5000 })
+      await delay(500)
+      // Try "Go to Location" (new UI) or "Go to Page" (old UI)
+      const goToItem = page
+        .locator('ion-item', { hasText: /go to (location|page)/i })
+        .or(
+          page.locator('[role="listitem"]', {
+            hasText: /go to (location|page)/i
+          })
+        )
+        .or(page.getByText(/go to (location|page)/i))
+      await goToItem.first().click({ timeout: 5000 })
+      await delay(300)
+      // Fill in the location/page input
+      const pageInput = page
+        .locator('ion-modal input')
+        .or(page.locator('input[placeholder*="page"]'))
+        .or(page.locator('input[placeholder*="location"]'))
+      await pageInput.first().fill(`${pageNumber}`)
+      // Click Go button
+      const goButton = page
+        .locator('ion-modal ion-button', { hasText: /^go$/i })
+        .or(page.locator('ion-modal button', { hasText: /^go$/i }))
+        .or(
+          page.locator('ion-modal ion-button[item-i-d="go-to-modal-go-button"]')
+        )
+      await goButton.first().click({ timeout: 5000 })
+      await delay(500)
+    } catch (err) {
+      console.warn(
+        `goToPage(${pageNumber}) failed:`,
+        (err as Error).message?.slice(0, 100)
+      )
+      await page.keyboard.press('Escape')
+      await delay(200)
+      await page.keyboard.press('Escape')
+      await delay(200)
+    }
   }
 
   async function getPageNav() {
@@ -485,12 +516,16 @@ async function main() {
   // Loop through each page of the book
   do {
     const pageNav = await getPageNav()
+    const currentPage = pageNav?.page ?? pageNav?.location
 
-    if (pageNav?.page === undefined) {
+    if (currentPage === undefined) {
       break
     }
 
-    if (pageNav.page > result.nav.totalNumContentPages) {
+    if (
+      pageNav?.page !== undefined &&
+      pageNav.page > result.nav.totalNumContentPages
+    ) {
       break
     }
 
@@ -524,7 +559,7 @@ async function main() {
 
       assert(
         blob,
-        `no blob found for src: ${src} (index ${index}; page ${pageNav.page})`
+        `no blob found for src: ${src} (index ${index}; page ${currentPage})`
       )
 
       const rawRenderedImage = Buffer.from(blob.base64, 'base64')
@@ -545,21 +580,21 @@ async function main() {
 
     assert(
       renderedPageImageBuffer,
-      `no buffer found for src: ${src} (index ${index}; page ${pageNav.page})`
+      `no buffer found for src: ${src} (index ${index}; page ${currentPage})`
     )
 
     const screenshotPath = path.join(
       pageScreenshotsDir,
       `${index}`.padStart(pageNumberPaddingAmount, '0') +
         '-' +
-        `${pageNav.page}`.padStart(pageNumberPaddingAmount, '0') +
+        `${currentPage}`.padStart(pageNumberPaddingAmount, '0') +
         '.png'
     )
 
     await fs.writeFile(screenshotPath, renderedPageImageBuffer)
     const pageChunk = {
       index,
-      page: pageNav.page,
+      page: currentPage,
       screenshot: screenshotPath
     }
     result.pages.push(pageChunk)
@@ -623,8 +658,11 @@ async function main() {
 
   if (initialPageNav?.page !== undefined) {
     console.warn(`resetting back to initial page ${initialPageNav.page}...`)
-    // Reset back to the initial page
-    await goToPage(initialPageNav.page)
+    try {
+      await goToPage(initialPageNav.page)
+    } catch {
+      console.warn('Failed to reset to initial page, continuing...')
+    }
   }
 
   await context.close()
