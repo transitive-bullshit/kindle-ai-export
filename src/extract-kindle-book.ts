@@ -118,6 +118,16 @@ async function main() {
     return route.continue()
   })
 
+  // Force render responses to include the location map (Amazon now defaults to locationMap=false)
+  await page.route('**/renderer/render*', async (route) => {
+    const url = new URL(route.request().url())
+    if (url.hostname === 'read.amazon.com') {
+      url.searchParams.set('locationMap', 'true')
+      return route.continue({ url: url.toString() })
+    }
+    return route.continue()
+  })
+
   page.on('response', async (response) => {
     try {
       const status = response.status()
@@ -140,12 +150,12 @@ async function main() {
           console.warn('book meta', metadata)
           result.meta = metadata
         }
-      } else if (
-        url.hostname === 'read.amazon.com' &&
-        url.searchParams.get('asin')?.toLowerCase() === asinL
-      ) {
+      } else if (url.hostname === 'read.amazon.com') {
         if (url.pathname === '/service/mobile/reader/startReading') {
           const body: any = await response.json()
+          // Verify this response is for our book (ASIN may be in body rather than query params)
+          const bodyAsin: string | undefined = body.asin ?? body.ASIN
+          if (bodyAsin && bodyAsin.toLowerCase() !== asinL) return
           delete body.karamelToken
           delete body.metadataUrl
           delete body.YJFormatVersion
@@ -154,6 +164,12 @@ async function main() {
           }
           result.info = body
         } else if (url.pathname === '/renderer/render') {
+          // Only process render responses for our book
+          const urlAsin =
+            [...url.searchParams.entries()].find(
+              ([k]) => k.toLowerCase() === 'asin'
+            )?.[1] ?? ''
+          if (urlAsin && urlAsin.toLowerCase() !== asinL) return
           // TODO: these TAR files have some useful metadata that we could use...
           const params = Object.fromEntries(url.searchParams.entries())
           const hash = hashObject(params)
@@ -175,11 +191,9 @@ async function main() {
             result.locationMap = locationMap
 
             for (const navUnit of result.locationMap.navigationUnit) {
-              navUnit.page = Number.parseInt(navUnit.label, 10)
-              assert(
-                !Number.isNaN(navUnit.page),
-                `invalid locationMap page number: ${navUnit.label}`
-              )
+              const num = Number.parseInt(navUnit.label, 10)
+              // Roman numeral front-matter pages (e.g. "ii") get page 0
+              navUnit.page = Number.isNaN(num) ? 0 : num
             }
           }
 
@@ -189,6 +203,35 @@ async function main() {
           if (metadata) {
             result.nav.startPosition = metadata.firstPositionId
             result.nav.endPosition = metadata.lastPositionId
+
+            // Build synthetic result.meta if YJmetadata.jsonp was not intercepted
+            if (!result.meta) {
+              const manifest = await tryReadJsonFile<any>(
+                path.join(renderDir, 'manifest.json')
+              )
+              result.meta = {
+                asin,
+                title: metadata.bookTitle ?? '',
+                authorList: metadata.authors ?? [],
+                language: metadata.lang ?? 'en',
+                startPosition: metadata.srl ?? metadata.firstPositionId,
+                endPosition: metadata.lastPositionId,
+                positions: {
+                  srl: metadata.srl ?? 0,
+                  cover: 0,
+                  toc: 0
+                },
+                ACR: manifest?.acr ?? '',
+                bookSize: '',
+                bookType: manifest?.bookType ?? '',
+                cover: '',
+                publisher: '',
+                refEmId: manifest?.embeddedId ?? '',
+                releaseDate: '',
+                sample: false,
+                version: manifest?.revision ?? ''
+              }
+            }
           }
 
           const rawToc = await tryReadJsonFile<AmazonRenderToc>(
@@ -211,7 +254,9 @@ async function main() {
           // console.warn('toc', toc)
         }
       }
-    } catch {}
+    } catch (err) {
+      console.warn('response handler error', response.url(), err)
+    }
   })
 
   // Only used for the 'blob' render method
@@ -274,11 +319,11 @@ async function main() {
   // If we're on the signin page, start the authentication flow.
   if (/\/ap\/signin/g.test(new URL(page.url()).pathname)) {
     await page.locator('input[type="email"]').fill(amazonEmail)
-    await page.locator('input[type="submit"]').click()
+    await page.locator('#signInSubmit, #continue').first().click()
 
     await page.locator('input[type="password"]').fill(amazonPassword)
     // await page.locator('input[type="checkbox"]').click()
-    await page.locator('input[type="submit"]').click()
+    await page.locator('#signInSubmit').click()
 
     if (!/\/kindle-library/g.test(new URL(page.url()).pathname)) {
       const code = await input({
@@ -350,7 +395,14 @@ async function main() {
     await page
       .locator('ion-modal ion-button[item-i-d="go-to-modal-go-button"]')
       .click()
-    await delay(500)
+    // Wait for the modal to fully close before returning so it doesn't block subsequent clicks
+    await page
+      .locator('ion-modal.go-to-modal')
+      .waitFor({ state: 'hidden', timeout: 10_000 })
+      .catch(() => {
+        // If the modal doesn't close on its own, press Escape to dismiss it
+        return page.keyboard.press('Escape')
+      })
   }
 
   async function getPageNav() {
@@ -440,7 +492,11 @@ async function main() {
 
   // At this point, we should have recorded all the base book metadata from the
   // initial network requests.
-  assert(result.info, 'expected book info to be initialized')
+  if (!result.info) {
+    console.warn(
+      'book info (startReading) was not intercepted; it may have been deprecated by Amazon'
+    )
+  }
   assert(result.meta, 'expected book meta to be initialized')
   assert(result.toc?.length, 'expected book toc to be initialized')
   assert(result.locationMap, 'expected book location map to be initialized')
@@ -565,6 +621,11 @@ async function main() {
     result.pages.push(pageChunk)
     console.warn(pageChunk)
     await writeResultMetadata()
+
+    // Stop after capturing the last content page — no need to navigate further
+    if (pageNav.page >= result.nav.totalNumContentPages) {
+      break
+    }
 
     let retries = 0
 

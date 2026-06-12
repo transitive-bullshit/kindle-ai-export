@@ -173,7 +173,7 @@ export async function tryReadJsonFile<T = unknown>(
   filePath: string
 ): Promise<T | undefined> {
   try {
-    return readJsonFile(filePath)
+    return await readJsonFile(filePath)
   } catch {}
 }
 

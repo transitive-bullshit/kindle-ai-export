@@ -62,17 +62,23 @@ async function main() {
 
   renderTitlePage()
 
+  // Skip front-matter entries with page=0 (roman-numeral pages not captured)
+  const validToc = metadata.toc.filter(
+    (item) => item.page != null && item.page > 0
+  )
+
   let needsNewPage = false
   let index = 0
 
-  for (let i = 0; i < metadata.toc.length - 1; i++) {
-    const tocItem = metadata.toc[i]!
-    if (tocItem.page === undefined) continue
+  for (let i = 0; i < validToc.length; i++) {
+    const tocItem = validToc[i]!
+    const nextTocItem = validToc[i + 1]
 
-    const nextTocItem = metadata.toc[i + 1]!
-    const nextIndex = nextTocItem.page
+    const rawNext = nextTocItem
       ? content.findIndex((c) => c.page >= nextTocItem.page!)
-      : content.length
+      : -1
+    const nextIndex = rawNext === -1 ? content.length : rawNext
+
     if (nextIndex < index) continue
 
     if (needsNewPage) {
@@ -90,11 +96,13 @@ async function main() {
     doc.fontSize(fontSize)
     doc.moveDown(1)
 
-    doc.text(text, {
-      indent: 20,
-      lineGap: 4,
-      paragraphGap: 8
-    })
+    if (text) {
+      doc.text(text, {
+        indent: 20,
+        lineGap: 4,
+        paragraphGap: 8
+      })
+    }
 
     index = nextIndex
     needsNewPage = true
