@@ -22,11 +22,10 @@ async function main() {
     await fsp.readFile(path.join(outDir, 'metadata.json'), 'utf8')
   ) as BookMetadata
   assert(content.length, 'no book content found')
-  assert(metadata.meta, 'invalid book metadata: missing meta')
   assert(metadata.toc?.length, 'invalid book metadata: missing toc')
 
-  const title = metadata.meta.title
-  const authors = metadata.meta.authorList
+  const title = metadata.meta?.title || 'Unknown Title'
+  const authors = metadata.meta?.authorList || ['Unknown Author']
 
   const doc = new PDFDocument({
     autoFirstPage: true,
