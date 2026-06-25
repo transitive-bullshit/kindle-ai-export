@@ -19,11 +19,10 @@ async function main() {
     path.join(outDir, 'metadata.json')
   )
   assert(content.length, 'no book content found')
-  assert(metadata.meta, 'invalid book metadata: missing meta')
   assert(metadata.toc?.length, 'invalid book metadata: missing toc')
 
-  const title = metadata.meta.title
-  const authors = metadata.meta.authorList
+  const title = metadata.meta?.title || 'Unknown Title'
+  const authors = metadata.meta?.authorList || ['Unknown Author']
 
   let lastTocItemIndex = 0
   for (let i = 0, index = 0; i < metadata.toc.length - 1; i++) {

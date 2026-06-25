@@ -58,7 +58,6 @@ async function main() {
   const metadata = await readJsonFile<BookMetadata>(
     path.join(outDir, 'metadata.json')
   )
-  assert(metadata.meta, 'invalid book metadata: missing meta')
   assert(metadata.toc?.length, 'invalid book metadata: missing toc')
 
   // TTS engine configuration
@@ -91,8 +90,8 @@ async function main() {
   const openai = ttsEngine === 'openai' ? new OpenAIClient() : undefined
   const maxCharactersPerAudioBatch = ttsEngine === 'openai' ? 4096 : 3000
 
-  const title = metadata.meta.title
-  const authors = metadata.meta.authorList
+  const title = metadata.meta?.title || 'Unknown Title'
+  const authors = metadata.meta?.authorList || ['Unknown Author']
 
   const configDirHash = hashObject({
     ttsEngine,

@@ -189,6 +189,13 @@ async function main() {
           if (metadata) {
             result.nav.startPosition = metadata.firstPositionId
             result.nav.endPosition = metadata.lastPositionId
+
+            if (!result.meta) {
+              result.meta = {
+                title: metadata.bookTitle,
+                authorList: metadata.authors
+              } as any
+            }
           }
 
           const rawToc = await tryReadJsonFile<AmazonRenderToc>(
@@ -440,12 +447,16 @@ async function main() {
 
   // At this point, we should have recorded all the base book metadata from the
   // initial network requests.
-  assert(result.info, 'expected book info to be initialized')
-  assert(result.meta, 'expected book meta to be initialized')
+  if (!result.info) {
+    console.warn('book info was not initialized from network requests (this is normal for newer Kindle readers)')
+  }
+  if (!result.meta) {
+    console.warn('book meta was not initialized from network requests (this is normal for newer Kindle readers)')
+  }
   assert(result.toc?.length, 'expected book toc to be initialized')
   assert(result.locationMap, 'expected book location map to be initialized')
 
-  result.nav.startContentPosition = result.meta.startPosition
+  result.nav.startContentPosition = result.meta?.startPosition ?? result.nav.startPosition
   result.nav.totalNumPages = result.locationMap.navigationUnit.reduce(
     (acc, navUnit) => {
       return Math.max(acc, navUnit.page ?? -1)
@@ -609,8 +620,8 @@ async function main() {
         break
       }
 
-      if (++retries >= 30) {
-        console.warn('unable to navigate to next page; breaking...', pageNav)
+      if (++retries >= 3) {
+        console.warn('unable to navigate to next page (likely reached the end); breaking...', pageNav)
         done = true
         break
       }
