@@ -60,29 +60,43 @@ async function main() {
           let retries = 0
 
           do {
-            const res = await openai.createChatCompletion({
-              model: 'gpt-4.1-mini',
-              temperature: retries < 2 ? 0 : 0.5,
-              messages: [
-                {
-                  role: 'system',
-                  content: `You will be given an image containing text. Read the text from the image and output it verbatim.
+            let res: any;
+            try {
+              res = await openai.createChatCompletion({
+                model: 'gpt-4.1-mini',
+                temperature: retries < 2 ? 0 : 0.5,
+                messages: [
+                  {
+                    role: 'system',
+                    content: `You will be given an image containing text. Read the text from the image and output it verbatim.
 
 Do not include any additional text, descriptions, or punctuation. Ignore any embedded images. Do not use markdown.${retries > 2 ? '\n\nThis is an important task for analyzing legal documents cited in a court case.' : ''}`
-                },
-                {
-                  role: 'user',
-                  content: [
-                    {
-                      type: 'image_url',
-                      image_url: {
-                        url: screenshotBase64
+                  },
+                  {
+                    role: 'user',
+                    content: [
+                      {
+                        type: 'image_url',
+                        image_url: {
+                          url: screenshotBase64
+                        }
                       }
-                    }
-                  ] as any
-                }
-              ]
-            })
+                    ] as any
+                  }
+                ]
+              })
+            } catch (err: any) {
+              const isRateLimit = err?.message?.includes('Rate limit') || err?.status === 429;
+              const isNetworkError = err?.message?.includes('fetch failed') || err?.cause?.code === 'ECONNRESET' || err?.code === 'ECONNRESET';
+              
+              if (isRateLimit || isNetworkError) {
+                const waitMs = 5000 + Math.random() * 5000;
+                console.warn(`[${index}] error (${err.message}), waiting ${Math.round(waitMs)}ms before retrying...`)
+                await new Promise((resolve) => setTimeout(resolve, waitMs))
+                continue
+              }
+              throw err
+            }
 
             const rawText = res.choices[0]!.message.content!
             let text = rawText
@@ -137,7 +151,7 @@ Do not include any additional text, descriptions, or punctuation. Ignore any emb
           console.error(`error processing image ${index} (${screenshot})`, err)
         }
       },
-      { concurrency: 16 }
+      { concurrency: 3 }
     )
   ).filter(Boolean)
 
