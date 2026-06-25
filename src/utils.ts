@@ -29,7 +29,7 @@ export function getEnv(name: string): string | undefined {
   try {
     return typeof process !== 'undefined'
       ? // eslint-disable-next-line no-process-env
-        process.env?.[name]
+      process.env?.[name]
       : undefined
   } catch {
     return undefined
@@ -173,7 +173,7 @@ export async function tryReadJsonFile<T = unknown>(
   filePath: string
 ): Promise<T | undefined> {
   try {
-    return readJsonFile(filePath)
+    return await readJsonFile(filePath)
   } catch {}
 }
 

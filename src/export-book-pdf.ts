@@ -5,9 +5,56 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 
 import PDFDocument from 'pdfkit'
+import sharp from 'sharp'
 
 import type { BookMetadata, ContentChunk } from './types'
 import { assert, getEnv } from './utils'
+
+// Build a PDF directly from the captured page screenshots when no transcribed
+// text is available. Each image becomes one page, sized to the image so the
+// scan isn't scaled or cropped.
+async function renderImagePdf({
+  outDir,
+  metadata
+}: {
+  outDir: string
+  metadata: BookMetadata
+}) {
+  assert(metadata.pages?.length, 'no page screenshots found')
+
+  const title = metadata.meta.title
+  const authors = metadata.meta.authorList
+
+  const doc = new PDFDocument({
+    autoFirstPage: false,
+    displayTitle: true,
+    info: {
+      Title: title,
+      Author: authors.join(', ')
+    }
+  })
+  const stream = doc.pipe(fs.createWriteStream(path.join(outDir, 'book.pdf')))
+
+  const pages = [...metadata.pages].sort((a, b) => a.index - b.index)
+
+  for (const pageChunk of pages) {
+    const buffer = await fsp.readFile(pageChunk.screenshot)
+    const { width, height } = await sharp(buffer).metadata()
+    assert(
+      width && height,
+      `invalid screenshot dimensions: ${pageChunk.screenshot}`
+    )
+
+    doc.addPage({ size: [width, height], margin: 0 })
+    doc.image(buffer, 0, 0, { width, height })
+  }
+
+  doc.end()
+  await new Promise<void>((resolve, reject) => {
+    stream.on('finish', resolve)
+    stream.on('error', reject)
+  })
+}
 
 async function main() {
   const asin = getEnv('ASIN')
@@ -15,14 +62,27 @@ async function main() {
 
   const outDir = path.join('out', asin)
 
-  const content = JSON.parse(
-    await fsp.readFile(path.join(outDir, 'content.json'), 'utf8')
-  ) as ContentChunk[]
   const metadata = JSON.parse(
     await fsp.readFile(path.join(outDir, 'metadata.json'), 'utf8')
   ) as BookMetadata
-  assert(content.length, 'no book content found')
   assert(metadata.meta, 'invalid book metadata: missing meta')
+
+  // Transcribed text is optional. If `content.json` doesn't exist (e.g. the AI
+  // transcription step was skipped), build the PDF directly from the captured
+  // page images instead.
+  const content = await fsp
+    .readFile(path.join(outDir, 'content.json'), 'utf8')
+    .then((raw) => JSON.parse(raw) as ContentChunk[])
+    .catch((err: any) => {
+      if (err?.code === 'ENOENT') return undefined
+      throw err
+    })
+
+  if (!content?.length) {
+    await renderImagePdf({ outDir, metadata })
+    return
+  }
+
   assert(metadata.toc?.length, 'invalid book metadata: missing toc')
 
   const title = metadata.meta.title
@@ -62,17 +122,23 @@ async function main() {
 
   renderTitlePage()
 
+  // Skip front-matter entries with page=0 (roman-numeral pages not captured)
+  const validToc = metadata.toc.filter(
+    (item) => item.page != null && item.page > 0
+  )
+
   let needsNewPage = false
   let index = 0
 
-  for (let i = 0; i < metadata.toc.length - 1; i++) {
-    const tocItem = metadata.toc[i]!
-    if (tocItem.page === undefined) continue
+  for (let i = 0; i < validToc.length; i++) {
+    const tocItem = validToc[i]!
+    const nextTocItem = validToc[i + 1]
 
-    const nextTocItem = metadata.toc[i + 1]!
-    const nextIndex = nextTocItem.page
+    const rawNext = nextTocItem
       ? content.findIndex((c) => c.page >= nextTocItem.page!)
-      : content.length
+      : -1
+    const nextIndex = rawNext === -1 ? content.length : rawNext
+
     if (nextIndex < index) continue
 
     if (needsNewPage) {
@@ -90,11 +156,13 @@ async function main() {
     doc.fontSize(fontSize)
     doc.moveDown(1)
 
-    doc.text(text, {
-      indent: 20,
-      lineGap: 4,
-      paragraphGap: 8
-    })
+    if (text) {
+      doc.text(text, {
+        indent: 20,
+        lineGap: 4,
+        paragraphGap: 8
+      })
+    }
 
     index = nextIndex
     needsNewPage = true
