@@ -16,6 +16,7 @@ import type {
   AmazonRenderToc,
   AmazonRenderTocItem,
   BookMetadata,
+  PageNav,
   TocItem
 } from './types'
 import { parsePageNav, parseTocItems } from './playwright-utils'
@@ -79,7 +80,7 @@ async function main() {
   const deviceScaleFactor = 2
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
-    channel: 'chrome',
+    executablePath: '/usr/bin/chromium',
     args: [
       // hide chrome's crash restore popup
       '--hide-crash-restore-bubble',
@@ -118,6 +119,16 @@ async function main() {
     return route.continue()
   })
 
+  // Force render responses to include the location map (Amazon now defaults to locationMap=false)
+  await page.route('**/renderer/render*', async (route) => {
+    const url = new URL(route.request().url())
+    if (url.hostname === 'read.amazon.com') {
+      url.searchParams.set('locationMap', 'true')
+      return route.continue({ url: url.toString() })
+    }
+    return route.continue()
+  })
+
   page.on('response', async (response) => {
     try {
       const status = response.status()
@@ -140,12 +151,12 @@ async function main() {
           console.warn('book meta', metadata)
           result.meta = metadata
         }
-      } else if (
-        url.hostname === 'read.amazon.com' &&
-        url.searchParams.get('asin')?.toLowerCase() === asinL
-      ) {
+      } else if (url.hostname === 'read.amazon.com') {
         if (url.pathname === '/service/mobile/reader/startReading') {
           const body: any = await response.json()
+          // Verify this response is for our book (ASIN may be in body rather than query params)
+          const bodyAsin: string | undefined = body.asin ?? body.ASIN
+          if (bodyAsin && bodyAsin.toLowerCase() !== asinL) return
           delete body.karamelToken
           delete body.metadataUrl
           delete body.YJFormatVersion
@@ -154,6 +165,12 @@ async function main() {
           }
           result.info = body
         } else if (url.pathname === '/renderer/render') {
+          // Only process render responses for our book
+          const urlAsin =
+            [...url.searchParams.entries()].find(
+              ([k]) => k.toLowerCase() === 'asin'
+            )?.[1] ?? ''
+          if (urlAsin && urlAsin.toLowerCase() !== asinL) return
           // TODO: these TAR files have some useful metadata that we could use...
           const params = Object.fromEntries(url.searchParams.entries())
           const hash = hashObject(params)
@@ -173,13 +190,16 @@ async function main() {
           )
           if (locationMap) {
             result.locationMap = locationMap
-
-            for (const navUnit of result.locationMap.navigationUnit) {
-              navUnit.page = Number.parseInt(navUnit.label, 10)
-              assert(
-                !Number.isNaN(navUnit.page),
-                `invalid locationMap page number: ${navUnit.label}`
-              )
+            if (locationMap.locations?.length) {
+              console.log('locations[0]:', JSON.stringify(locationMap.locations[0]))
+              console.log('locations[1]:', JSON.stringify(locationMap.locations[1]))
+            }
+            // Amazon now omits `navigationUnit` from location_map.json (it only
+            // returns `locations: number[]`), so guard against it being absent.
+            for (const navUnit of result.locationMap.navigationUnit ?? []) {
+              const num = Number.parseInt(navUnit.label, 10)
+              // Roman numeral front-matter pages (e.g. "ii") get page 0
+              navUnit.page = Number.isNaN(num) ? 0 : num
             }
           }
 
@@ -189,6 +209,35 @@ async function main() {
           if (metadata) {
             result.nav.startPosition = metadata.firstPositionId
             result.nav.endPosition = metadata.lastPositionId
+
+            // Build synthetic result.meta if YJmetadata.jsonp was not intercepted
+            if (!result.meta) {
+              const manifest = await tryReadJsonFile<any>(
+                path.join(renderDir, 'manifest.json')
+              )
+              result.meta = {
+                asin,
+                title: metadata.bookTitle ?? '',
+                authorList: metadata.authors ?? [],
+                language: metadata.lang ?? 'en',
+                startPosition: metadata.srl ?? metadata.firstPositionId,
+                endPosition: metadata.lastPositionId,
+                positions: {
+                  srl: metadata.srl ?? 0,
+                  cover: 0,
+                  toc: 0
+                },
+                ACR: manifest?.acr ?? '',
+                bookSize: '',
+                bookType: manifest?.bookType ?? '',
+                cover: '',
+                publisher: '',
+                refEmId: manifest?.embeddedId ?? '',
+                releaseDate: '',
+                sample: false,
+                version: manifest?.revision ?? ''
+              }
+            }
           }
 
           const rawToc = await tryReadJsonFile<AmazonRenderToc>(
@@ -211,7 +260,9 @@ async function main() {
           // console.warn('toc', toc)
         }
       }
-    } catch {}
+    } catch (err) {
+      console.warn('response handler error', response.url(), err)
+    }
   })
 
   // Only used for the 'blob' render method
@@ -239,10 +290,10 @@ async function main() {
         // (haven't found this to be an issue in practice)
         const type = blob.type || 'application/octet-stream'
         const url = origCreateObjectURL(blob)
-        // nodeLog('createObjectURL', url, type, blob.size)
+          // nodeLog('createObjectURL', url, type, blob.size)
 
-        // Snapshot blob bytes immediately because kindle's renderer revokes
-        // them immediately after they're used.
+          // Snapshot blob bytes immediately because kindle's renderer revokes
+          // them immediately after they're used.
         ;(async () => {
           const buf = await blob.arrayBuffer()
           // store raw base64 (not data URL) to keep payload small
@@ -274,11 +325,11 @@ async function main() {
   // If we're on the signin page, start the authentication flow.
   if (/\/ap\/signin/g.test(new URL(page.url()).pathname)) {
     await page.locator('input[type="email"]').fill(amazonEmail)
-    await page.locator('input[type="submit"]').click()
+    await page.locator('#signInSubmit, #continue').first().click()
 
     await page.locator('input[type="password"]').fill(amazonPassword)
     // await page.locator('input[type="checkbox"]').click()
-    await page.locator('input[type="submit"]').click()
+    await page.locator('#signInSubmit').click()
 
     if (!/\/kindle-library/g.test(new URL(page.url()).pathname)) {
       const code = await input({
@@ -306,7 +357,7 @@ async function main() {
     const settingsButton = page
       .locator(
         'ion-button[aria-label="Reader settings"], ' +
-          'button[aria-label="Reader settings"]'
+        'button[aria-label="Reader settings"]'
       )
       .first()
     await settingsButton.waitFor({ timeout: 30_000 })
@@ -340,17 +391,31 @@ async function main() {
     await delay(200)
     await page.locator('ion-button[aria-label="Reader menu"]').click()
     await delay(500)
+    // Page-based books expose a "Go to Page" menu item; location-only books
+    // (no print page numbers) expose "Go to Location" instead.
     await page
-      .locator('ion-item[role="listitem"]', { hasText: 'Go to Page' })
+      .locator('ion-item[role="listitem"]')
+      .filter({ hasText: /Go to (Page|Location)/ })
+      .first()
       .click()
+    // The go-to modal has a single number input whose placeholder is either
+    // "page number" or "location number" depending on the book.
     await page
-      .locator('ion-modal input[placeholder="page number"]')
+      .locator('ion-modal input[type="number"], ion-modal input')
+      .first()
       .fill(`${pageNumber}`)
     // await page.locator('ion-modal button', { hasText: 'Go' }).click()
     await page
       .locator('ion-modal ion-button[item-i-d="go-to-modal-go-button"]')
       .click()
-    await delay(500)
+    // Wait for the modal to fully close before returning so it doesn't block subsequent clicks
+    await page
+      .locator('ion-modal.go-to-modal')
+      .waitFor({ state: 'hidden', timeout: 10_000 })
+      .catch(() => {
+        // If the modal doesn't close on its own, press Escape to dismiss it
+        return page.keyboard.press('Escape')
+      })
   }
 
   async function getPageNav() {
@@ -359,6 +424,23 @@ async function main() {
       .first()
       .textContent()
     return parsePageNav(footerText)
+  }
+
+  // Page-based books report "page X of Y"; location-only books report
+  // "location X of Y". Treat whichever is present as the navigation unit.
+  function getNavValue(nav?: PageNav): number | undefined {
+    return nav?.page ?? nav?.location
+  }
+
+  // At the end of the book the next-page chevron is removed / hidden / disabled.
+  // This is the reliable end-of-book signal for location-only books, where the
+  // final page reports a location below the total (a page spans many locations).
+  async function canGoToNextPage(): Promise<boolean> {
+    const button = page.locator('.kr-chevron-container-right button')
+    if (!(await button.count())) return false
+    if (!(await button.first().isVisible().catch(() => false))) return false
+    if (await button.first().isDisabled().catch(() => false)) return false
+    return true
   }
 
   async function ensureFixedHeaderUI() {
@@ -413,7 +495,7 @@ async function main() {
     let resultPage = 1
 
     // TODO: this is O(n) but we can do better
-    for (const { startPosition, page } of result.locationMap.navigationUnit) {
+    for (const { startPosition, page } of (result.locationMap.navigationUnit ?? [])) {
       if (startPosition > position) break
 
       resultPage = page
@@ -440,19 +522,34 @@ async function main() {
 
   // At this point, we should have recorded all the base book metadata from the
   // initial network requests.
-  assert(result.info, 'expected book info to be initialized')
+  if (!result.info) {
+    console.warn(
+      'book info (startReading) was not intercepted; it may have been deprecated by Amazon'
+    )
+  }
   assert(result.meta, 'expected book meta to be initialized')
   assert(result.toc?.length, 'expected book toc to be initialized')
   assert(result.locationMap, 'expected book location map to be initialized')
 
   result.nav.startContentPosition = result.meta.startPosition
-  result.nav.totalNumPages = result.locationMap.navigationUnit.reduce(
+  result.nav.totalNumPages = (result.locationMap.navigationUnit ?? []).reduce(
     (acc, navUnit) => {
       return Math.max(acc, navUnit.page ?? -1)
     },
     -1
   )
-  assert(result.nav.totalNumPages > 0, 'parsed book nav has no pages')
+  // Amazon dropped `navigationUnit` from the location map, so fall back to the
+  // total page count reported in the reader footer ("page X of Y").
+  if (result.nav.totalNumPages <= 0 && initialPageNav?.total) {
+    console.warn(
+      'navigationUnit empty; using footer page total',
+      initialPageNav.total
+    )
+    result.nav.totalNumPages = initialPageNav.total
+  }
+  if (result.nav.totalNumPages <= 0) {
+    console.warn('WARNING: totalNumPages is', result.nav.totalNumPages, '— navigationUnit may be empty and footer total unavailable')
+  }
   result.nav.startContentPage = getPageForPosition(
     result.nav.startContentPosition
   )
@@ -485,12 +582,13 @@ async function main() {
   // Loop through each page of the book
   do {
     const pageNav = await getPageNav()
+    const navValue = getNavValue(pageNav)
 
-    if (pageNav?.page === undefined) {
+    if (navValue === undefined) {
       break
     }
 
-    if (pageNav.page > result.nav.totalNumContentPages) {
+    if (navValue > result.nav.totalNumContentPages) {
       break
     }
 
@@ -524,7 +622,7 @@ async function main() {
 
       assert(
         blob,
-        `no blob found for src: ${src} (index ${index}; page ${pageNav.page})`
+        `no blob found for src: ${src} (index ${index}; page ${navValue})`
       )
 
       const rawRenderedImage = Buffer.from(blob.base64, 'base64')
@@ -545,26 +643,31 @@ async function main() {
 
     assert(
       renderedPageImageBuffer,
-      `no buffer found for src: ${src} (index ${index}; page ${pageNav.page})`
+      `no buffer found for src: ${src} (index ${index}; page ${navValue})`
     )
 
     const screenshotPath = path.join(
       pageScreenshotsDir,
       `${index}`.padStart(pageNumberPaddingAmount, '0') +
-        '-' +
-        `${pageNav.page}`.padStart(pageNumberPaddingAmount, '0') +
-        '.png'
+      '-' +
+      `${navValue}`.padStart(pageNumberPaddingAmount, '0') +
+      '.png'
     )
 
     await fs.writeFile(screenshotPath, renderedPageImageBuffer)
     const pageChunk = {
       index,
-      page: pageNav.page,
+      page: navValue,
       screenshot: screenshotPath
     }
     result.pages.push(pageChunk)
     console.warn(pageChunk)
     await writeResultMetadata()
+
+    // Stop after capturing the last content page — no need to navigate further
+    if (navValue >= result.nav.totalNumContentPages) {
+      break
+    }
 
     let retries = 0
 
@@ -572,6 +675,14 @@ async function main() {
       // This delay seems to help speed up the navigation process, possibly due
       // to the navigation chevron needing time to settle.
       await delay(100)
+
+      // Stop cleanly at the end of the book instead of retrying a chevron that
+      // no longer exists.
+      if (!(await canGoToNextPage())) {
+        console.warn('reached end of book (no next page button); stopping', pageNav)
+        done = true
+        break
+      }
 
       let navigationTimeout = 10_000
       try {
@@ -621,10 +732,11 @@ async function main() {
   console.log()
   console.log(metadataPath)
 
-  if (initialPageNav?.page !== undefined) {
-    console.warn(`resetting back to initial page ${initialPageNav.page}...`)
-    // Reset back to the initial page
-    await goToPage(initialPageNav.page)
+  const initialNavValue = getNavValue(initialPageNav)
+  if (initialNavValue !== undefined) {
+    console.warn(`resetting back to initial page ${initialNavValue}...`)
+    // Reset back to the initial page/location
+    await goToPage(initialNavValue)
   }
 
   await context.close()
