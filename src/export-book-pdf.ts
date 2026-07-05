@@ -7,7 +7,7 @@ import path from 'node:path'
 import PDFDocument from 'pdfkit'
 
 import type { BookMetadata, ContentChunk } from './types'
-import { assert, getEnv } from './utils'
+import { assert, getBookFilenameBase, getEnv } from './utils'
 
 async function main() {
   const asin = getEnv('ASIN')
@@ -36,25 +36,38 @@ async function main() {
       Author: authors.join(', ')
     }
   })
-  const stream = doc.pipe(fs.createWriteStream(path.join(outDir, 'book.pdf')))
+  const stream = doc.pipe(
+    fs.createWriteStream(
+      path.join(outDir, `${getBookFilenameBase(metadata.meta)}.pdf`)
+    )
+  )
 
   const fontSize = 12
 
   const renderTitlePage = () => {
     ;(doc as any).outline.addItem('Title Page')
-    doc.fontSize(48)
-    doc.y = doc.page.height / 2 - doc.heightOfString(title) / 2
-    doc.text(title, { align: 'center' })
-    const w = doc.widthOfString(title)
 
-    const byline = `By ${authors.join(',\n')}`
+    if (metadata.meta.cover && fs.existsSync(metadata.meta.cover)) {
+      doc.image(metadata.meta.cover, {
+        fit: [doc.page.width - 72, doc.page.height - 72],
+        align: 'center',
+        valign: 'center'
+      })
+    } else {
+      doc.fontSize(48)
+      doc.y = doc.page.height / 2 - doc.heightOfString(title) / 2
+      doc.text(title, { align: 'center' })
+      const w = doc.widthOfString(title)
 
-    doc.fontSize(20)
-    doc.y -= doc.heightOfString(byline) / 2
-    doc.text(byline, {
-      align: 'center',
-      indent: w - doc.widthOfString(byline)
-    })
+      const byline = `By ${authors.join(',\n')}`
+
+      doc.fontSize(20)
+      doc.y -= doc.heightOfString(byline) / 2
+      doc.text(byline, {
+        align: 'center',
+        indent: w - doc.widthOfString(byline)
+      })
+    }
 
     doc.addPage()
     doc.fontSize(fontSize)

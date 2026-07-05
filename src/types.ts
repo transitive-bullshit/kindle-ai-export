@@ -35,7 +35,13 @@ export interface ContentChunk {
 }
 
 export interface PageNav {
+  /** Arabic page number, e.g. from footer text "Page 7 of 183" */
   page?: number
+  /** Front-matter page number deromanized from footer text like "Page vii of 183" */
+  romanPage?: number
+  /** Generic progress counter from footer text "Location 123 of 2296", shown only
+   * transiently before the reader has computed real page numbers -- not a stable
+   * page identifier and shouldn't be used to key content. */
   location?: number
   total: number
 }

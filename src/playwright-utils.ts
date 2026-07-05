@@ -33,16 +33,16 @@ export function parsePageNav(text: string | null): PageNav | undefined {
   }
 
   {
-    // Parse locations which use roman numerals
+    // Parse front-matter page numbers, which use roman numerals
     const match = text?.match(/page\s+([cdilmvx]+)\s+of\s+(\d+)/i)
     if (match) {
-      const location = deromanize(match?.[1]!)
+      const romanPage = deromanize(match?.[1]!)
       const total = Number.parseInt(match?.[2]!)
-      if (Number.isNaN(location) || Number.isNaN(total)) {
+      if (Number.isNaN(romanPage) || Number.isNaN(total)) {
         return undefined
       }
 
-      return { location, total }
+      return { romanPage, total }
     }
   }
 }

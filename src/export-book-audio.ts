@@ -15,6 +15,7 @@ import {
   assert,
   ffmpegOnProgress,
   fileExists,
+  getBookFilenameBase,
   getEnv,
   hashObject,
   readJsonFile
@@ -254,7 +255,10 @@ ${text}`.split('\n\n')
     .map((a) => `file ${path.basename(a.audioFilePath)}`)
     .join('\n')
   await fs.writeFile(audioConcatInputFilePath, audioConcatInput)
-  const audiobookOutputFilePath = path.join(ttsOutDir, 'audiobook.mp3')
+  const audiobookOutputFilePath = path.join(
+    ttsOutDir,
+    `${getBookFilenameBase(metadata.meta)}.mp3`
+  )
 
   const expectedDurationMs =
     audioParts.reduce((duration, a) => duration + a.duration, 0) * 1000

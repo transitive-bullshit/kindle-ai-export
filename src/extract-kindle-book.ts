@@ -12,6 +12,7 @@ import { chromium } from 'patchright'
 import sharp from 'sharp'
 
 import type {
+  AmazonBookMeta,
   AmazonRenderLocationMap,
   AmazonRenderToc,
   AmazonRenderTocItem,
@@ -21,6 +22,7 @@ import type {
 import { parsePageNav, parseTocItems } from './playwright-utils'
 import {
   assert,
+  deromanize,
   extractTar,
   getEnv,
   hashObject,
@@ -29,6 +31,15 @@ import {
   parseJsonpResponse,
   tryReadJsonFile
 } from './utils'
+
+// Front-matter pages are labeled with roman numerals (e.g. "Page vii of
+// 183") rather than the arabic page numbers the body uses, and the body
+// restarts its own arabic count at 1 once front matter ends (a common print
+// convention). To keep the two from colliding while still sorting correctly
+// (roman numerals increase the same direction as arabic page numbers do),
+// front-matter pages are offset below zero rather than negated -- negating
+// would reverse their ordering relative to each other.
+const FRONT_MATTER_PAGE_OFFSET = -1000
 
 // Block amazon analytics requests
 // (not strictly necessary, but adblockers do this by default anyway and it
@@ -175,11 +186,13 @@ async function main() {
             result.locationMap = locationMap
 
             for (const navUnit of result.locationMap.navigationUnit) {
-              navUnit.page = Number.parseInt(navUnit.label, 10)
-              assert(
-                !Number.isNaN(navUnit.page),
-                `invalid locationMap page number: ${navUnit.label}`
-              )
+              const parsedPage = Number.parseInt(navUnit.label, 10)
+              if (!Number.isNaN(parsedPage)) {
+                navUnit.page = parsedPage
+              } else if (/^[ivxlcdm]+$/i.test(navUnit.label)) {
+                navUnit.page =
+                  FRONT_MATTER_PAGE_OFFSET + deromanize(navUnit.label)
+              }
             }
           }
 
@@ -211,7 +224,9 @@ async function main() {
           // console.warn('toc', toc)
         }
       }
-    } catch {}
+    } catch (err) {
+      console.warn('error processing response', response.url(), err)
+    }
   })
 
   // Only used for the 'blob' render method
@@ -335,22 +350,134 @@ async function main() {
     await delay(500)
   }
 
-  async function goToPage(pageNumber: number) {
-    await page.locator('#reader-header').hover({ force: true })
-    await delay(200)
-    await page.locator('ion-button[aria-label="Reader menu"]').click()
-    await delay(500)
-    await page
-      .locator('ion-item[role="listitem"]', { hasText: 'Go to Page' })
-      .click()
-    await page
-      .locator('ion-modal input[placeholder="page number"]')
-      .fill(`${pageNumber}`)
-    // await page.locator('ion-modal button', { hasText: 'Go' }).click()
-    await page
-      .locator('ion-modal ion-button[item-i-d="go-to-modal-go-button"]')
-      .click()
-    await delay(500)
+  async function scrapeBookMetaFallback() {
+    const metaPage = await context.newPage()
+    try {
+      await metaPage.goto(`https://www.amazon.com/dp/${asin}`, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30_000
+      })
+
+      const title = (
+        await metaPage.locator('#productTitle').first().textContent()
+      )?.trim()
+
+      const authorList = await metaPage
+        .locator('#bylineInfo .author a, .author a')
+        .allTextContents()
+        .then((authors) => authors.map((a) => a.trim()).filter(Boolean))
+
+      assert(title, `unable to scrape title for asin: ${asin}`)
+
+      /* eslint-disable unicorn/prefer-dom-node-dataset -- this is a
+         Playwright Locator, not a DOM node; it has no `.dataset` */
+      const coverImageUrl = await metaPage
+        .locator('#landingImage, #imgBlkFront')
+        .first()
+        .getAttribute('data-old-hires')
+        .catch(() => null)
+      /* eslint-enable unicorn/prefer-dom-node-dataset */
+
+      let cover = ''
+      if (coverImageUrl) {
+        try {
+          const res = await metaPage.request.get(coverImageUrl)
+          const coverPath = path.join(outDir, 'cover.jpg')
+          await fs.writeFile(coverPath, await res.body())
+          cover = coverPath
+        } catch (err: any) {
+          console.warn('unable to download cover image', err.message)
+        }
+      }
+
+      return {
+        asin,
+        title,
+        authorList,
+        cover,
+        startPosition: result.nav.startPosition,
+        endPosition: result.nav.endPosition
+      } as AmazonBookMeta
+    } finally {
+      await metaPage.close()
+    }
+  }
+
+  // Clicks the reader's next/prev-page chevron and waits for the rendered
+  // page image to change. Amazon's "Go to Page" menu item has proven
+  // unreliable across UI revisions, so chevron clicks are the only
+  // navigation mechanism this script depends on.
+  async function clickChevron(
+    direction: 'left' | 'right',
+    prevSrc: string
+  ): Promise<boolean> {
+    let retries = 0
+
+    do {
+      // This delay seems to help speed up the navigation process, possibly due
+      // to the navigation chevron needing time to settle.
+      await delay(100)
+
+      let navigationTimeout = 10_000
+      try {
+        await page
+          .locator(`.kr-chevron-container-${direction}`)
+          .click({ timeout: 5000 })
+      } catch (err: any) {
+        console.warn(`unable to click ${direction} page button`, err.message)
+        navigationTimeout = 1000
+      }
+
+      const navigatedToNextPage = await pRace<boolean | undefined>((signal) => [
+        (async () => {
+          while (!signal.aborted) {
+            const newSrc = await page
+              .locator(krRendererMainImageSelector)
+              .getAttribute('src')
+
+            if (newSrc && newSrc !== prevSrc) {
+              // Successfully navigated to the next page
+              return true
+            }
+
+            await delay(10)
+          }
+
+          return false
+        })(),
+
+        delay(navigationTimeout, { signal })
+      ])
+
+      if (navigatedToNextPage) {
+        return true
+      }
+
+      if (++retries >= 30) {
+        console.warn(`unable to navigate ${direction}; giving up`)
+        return false
+      }
+    } while (true)
+  }
+
+  async function advanceOnePage(prevSrc: string): Promise<boolean> {
+    return clickChevron('right', prevSrc)
+  }
+
+  // Amazon syncs "last read position" server-side per account (not per local
+  // browser profile), so a freshly authenticated session can resume mid-book
+  // instead of at the true first page. Click backward until the page image
+  // stops changing, which means we've hit the actual beginning.
+  async function retreatToStart(): Promise<void> {
+    for (;;) {
+      const src = await page
+        .locator(krRendererMainImageSelector)
+        .getAttribute('src')
+      if (!src) break
+
+      const retreated = await clickChevron('left', src)
+      if (!retreated) break
+    }
   }
 
   async function getPageNav() {
@@ -410,13 +537,20 @@ async function main() {
   function getPageForPosition(position: number): number {
     if (!result.locationMap) return -1
 
-    let resultPage = 1
+    // Positions before the first labeled nav unit (e.g. an unlabeled cover
+    // page preceding front-matter roman numeral "i") belong with that first
+    // unit's page, not a hardcoded default -- otherwise they'd fall back to
+    // a value indistinguishable from a real body page number.
+    let resultPage =
+      result.locationMap.navigationUnit[0]?.page ?? FRONT_MATTER_PAGE_OFFSET
 
     // TODO: this is O(n) but we can do better
     for (const { startPosition, page } of result.locationMap.navigationUnit) {
       if (startPosition > position) break
 
-      resultPage = page
+      if (page !== undefined) {
+        resultPage = page
+      }
     }
 
     return resultPage
@@ -435,13 +569,23 @@ async function main() {
       )
     })
 
-  // Record the initial page navigation so we can reset back to it later
-  const initialPageNav = await getPageNav()
-
   // At this point, we should have recorded all the base book metadata from the
-  // initial network requests.
-  assert(result.info, 'expected book info to be initialized')
-  assert(result.meta, 'expected book meta to be initialized')
+  // initial network requests. Amazon has, at various points, stopped firing
+  // the `startReading` / `YJmetadata.jsonp` requests this depends on for some
+  // accounts/books, so fall back to scraping the public product page for
+  // title/author if the network-derived metadata never showed up.
+  if (!result.info) {
+    console.warn(
+      'book info was not captured from network responses (Amazon may have changed their API); continuing without it since nothing downstream requires it'
+    )
+  }
+
+  if (!result.meta) {
+    console.warn(
+      'book meta was not captured from network responses; falling back to scraping the Amazon product page for title/author'
+    )
+    result.meta = await scrapeBookMetaFallback()
+  }
   assert(result.toc?.length, 'expected book toc to be initialized')
   assert(result.locationMap, 'expected book location map to be initialized')
 
@@ -474,23 +618,43 @@ async function main() {
     .length
   await writeResultMetadata()
 
-  // Navigate to the first content page of the book
-  await goToPage(result.nav.startContentPage)
+  console.warn('rewinding to the true first page...')
+  await retreatToStart()
 
   let done = false
   console.warn(
     `\nreading ${result.nav.totalNumContentPages} content pages out of ${result.nav.totalNumPages} total pages...\n`
   )
 
-  // Loop through each page of the book
+  // Loop through each page of the book. Front-matter pages report a roman
+  // numeral in the reader's footer (e.g. "Page vii of 183") rather than an
+  // arabic page number; signedPage offsets those below zero (see
+  // FRONT_MATTER_PAGE_OFFSET) so they don't collide with the body's own
+  // arabic count, which restarts at 1 once front matter ends.
   do {
     const pageNav = await getPageNav()
+    const signedPage =
+      pageNav?.page ??
+      (pageNav?.romanPage !== undefined
+        ? FRONT_MATTER_PAGE_OFFSET + pageNav.romanPage
+        : undefined)
 
-    if (pageNav?.page === undefined) {
+    if (signedPage === undefined) {
+      if (result.pages.length === 0) {
+        // The reader hasn't finished computing real page labels yet (shows
+        // a generic "Location N of M" instead) -- nudge it forward once and
+        // retry rather than giving up on the very first page.
+        const src = (await page
+          .locator(krRendererMainImageSelector)
+          .getAttribute('src'))!
+        await advanceOnePage(src)
+        continue
+      }
+
       break
     }
 
-    if (pageNav.page > result.nav.totalNumContentPages) {
+    if (signedPage > 0 && signedPage > result.nav.totalNumContentPages) {
       break
     }
 
@@ -524,7 +688,7 @@ async function main() {
 
       assert(
         blob,
-        `no blob found for src: ${src} (index ${index}; page ${pageNav.page})`
+        `no blob found for src: ${src} (index ${index}; page ${signedPage})`
       )
 
       const rawRenderedImage = Buffer.from(blob.base64, 'base64')
@@ -545,87 +709,37 @@ async function main() {
 
     assert(
       renderedPageImageBuffer,
-      `no buffer found for src: ${src} (index ${index}; page ${pageNav.page})`
+      `no buffer found for src: ${src} (index ${index}; page ${signedPage})`
     )
 
     const screenshotPath = path.join(
       pageScreenshotsDir,
       `${index}`.padStart(pageNumberPaddingAmount, '0') +
         '-' +
-        `${pageNav.page}`.padStart(pageNumberPaddingAmount, '0') +
+        (signedPage < 0 ? '-' : '') +
+        `${Math.abs(signedPage)}`.padStart(pageNumberPaddingAmount, '0') +
         '.png'
     )
 
     await fs.writeFile(screenshotPath, renderedPageImageBuffer)
     const pageChunk = {
       index,
-      page: pageNav.page,
+      page: signedPage,
       screenshot: screenshotPath
     }
     result.pages.push(pageChunk)
     console.warn(pageChunk)
     await writeResultMetadata()
 
-    let retries = 0
-
-    do {
-      // This delay seems to help speed up the navigation process, possibly due
-      // to the navigation chevron needing time to settle.
-      await delay(100)
-
-      let navigationTimeout = 10_000
-      try {
-        // await page.keyboard.press('ArrowRight')
-        await page
-          .locator('.kr-chevron-container-right')
-          .click({ timeout: 5000 })
-      } catch (err: any) {
-        console.warn('unable to click next page button', err.message, pageNav)
-        navigationTimeout = 1000
-      }
-
-      const navigatedToNextPage = await pRace<boolean | undefined>((signal) => [
-        (async () => {
-          while (!signal.aborted) {
-            const newSrc = await page
-              .locator(krRendererMainImageSelector)
-              .getAttribute('src')
-
-            if (newSrc && newSrc !== src) {
-              // Successfully navigated to the next page
-              return true
-            }
-
-            await delay(10)
-          }
-
-          return false
-        })(),
-
-        delay(navigationTimeout, { signal })
-      ])
-
-      if (navigatedToNextPage) {
-        break
-      }
-
-      if (++retries >= 30) {
-        console.warn('unable to navigate to next page; breaking...', pageNav)
-        done = true
-        break
-      }
-    } while (true)
+    const advanced = await advanceOnePage(src)
+    if (!advanced) {
+      done = true
+    }
   } while (!done)
 
   await writeResultMetadata()
   console.log()
   console.log(metadataPath)
-
-  if (initialPageNav?.page !== undefined) {
-    console.warn(`resetting back to initial page ${initialPageNav.page}...`)
-    // Reset back to the initial page
-    await goToPage(initialPageNav.page)
-  }
 
   await context.close()
   await context.browser()?.close()

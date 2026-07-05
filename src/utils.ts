@@ -201,3 +201,26 @@ export function normalizeBookMetadata(
 ): Partial<BookMetadata> {
   return sortKeys(book, { compare: bookMetadataFieldComparator })
 }
+
+/** e.g. { title: 'Get Signed: Find an Agent...', authorList: ['Lucinda Halpern'] } -> 'Halpern_GetSigned' */
+export function getBookFilenameBase(meta: {
+  title: string
+  authorList: string[]
+}): string {
+  const lastName =
+    meta.authorList[0]
+      ?.trim()
+      .split(/\s+/)
+      .pop()
+      ?.replaceAll(/[^\p{L}\p{N}]/gu, '') || 'UnknownAuthor'
+
+  const mainTitle = meta.title.split(':')[0]!
+  const titleSlug =
+    mainTitle
+      .replaceAll(/[^\p{L}\p{N}\s]/gu, '')
+      .split(/\s+/)
+      .filter(Boolean)
+      .join('') || 'UnknownTitle'
+
+  return `${lastName}_${titleSlug}`
+}
