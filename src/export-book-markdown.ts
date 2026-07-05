@@ -4,7 +4,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import type { BookMetadata, ContentChunk } from './types'
-import { assert, getEnv, readJsonFile } from './utils'
+import { assert, getBookFilenameBase, getEnv, readJsonFile } from './utils'
 
 async function main() {
   const asin = getEnv('ASIN')
@@ -85,7 +85,10 @@ ${text}`
     index = nextIndex
   }
 
-  await fs.writeFile(path.join(outDir, 'book.md'), output)
+  await fs.writeFile(
+    path.join(outDir, `${getBookFilenameBase(metadata.meta)}.md`),
+    output
+  )
   console.log(output)
 }
 

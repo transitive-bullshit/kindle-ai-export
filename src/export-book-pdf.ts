@@ -7,7 +7,7 @@ import path from 'node:path'
 import PDFDocument from 'pdfkit'
 
 import type { BookMetadata, ContentChunk } from './types'
-import { assert, getEnv } from './utils'
+import { assert, getBookFilenameBase, getEnv } from './utils'
 
 async function main() {
   const asin = getEnv('ASIN')
@@ -36,7 +36,11 @@ async function main() {
       Author: authors.join(', ')
     }
   })
-  const stream = doc.pipe(fs.createWriteStream(path.join(outDir, 'book.pdf')))
+  const stream = doc.pipe(
+    fs.createWriteStream(
+      path.join(outDir, `${getBookFilenameBase(metadata.meta)}.pdf`)
+    )
+  )
 
   const fontSize = 12
 
