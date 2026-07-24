@@ -178,10 +178,11 @@ Optional environment variables:
 ```sh
 # If your Kindle library lives on a regional domain, set it here
 # (e.g. read.amazon.ca, read.amazon.co.uk). Defaults to read.amazon.com.
-AMAZON_HOST=
+AMAZON_HOST=read.amazon.com
 
 # Fallback title/author metadata, used only if the Kindle reader's book
-# metadata responses can't be captured from the network (see below).
+# metadata responses can't be captured from the network — the extract script
+# prints a warning when this happens. Separate multiple authors with commas.
 BOOK_TITLE=
 BOOK_AUTHOR=
 ```

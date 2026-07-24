@@ -59,7 +59,15 @@ async function main() {
   await fs.mkdir(pageScreenshotsDir, { recursive: true })
 
   const krRendererMainImageSelector = '#kr-renderer .kg-full-page-img img'
-  const amazonHost = getEnv('AMAZON_HOST') ?? 'read.amazon.com'
+  // Normalize AMAZON_HOST: tolerate empty values, schemes, trailing slashes
+  // and uppercase, since it is compared against url.hostname (always
+  // lowercase, no scheme) and interpolated into the reader URL.
+  const amazonHost =
+    (getEnv('AMAZON_HOST') ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/.*$/, '') || 'read.amazon.com'
   const bookReaderUrl = `https://${amazonHost}/?asin=${asin}`
 
   const result: SetRequired<Partial<BookMetadata>, 'pages' | 'nav'> = {
@@ -81,9 +89,11 @@ async function main() {
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     channel: 'chrome',
-    // Kindle's web reader uses a service worker that can serve the
-    // startReading/metadata API calls from cache, which hides them from
-    // page.on('response') and leaves result.info/meta uninitialized.
+    // Kindle's web reader registers a service worker that can serve reader
+    // API responses from its own cache, hiding them from page.on('response').
+    // Blocking it keeps requests on the observable network path; note that
+    // some reader variants still fetch startReading/YJmetadata in ways
+    // Playwright cannot observe — see the metadata fallbacks further down.
     serviceWorkers: 'block',
     args: [
       // hide chrome's crash restore popup
@@ -111,6 +121,10 @@ async function main() {
   })
 
   const page = context.pages()[0] ?? (await context.newPage())
+
+  // Set when result.meta was synthesized from env-var fallbacks, so a real
+  // YJmetadata.jsonp response arriving later can still overwrite it.
+  let isFallbackMeta = false
 
   await page.route('**/*', async (route) => {
     const urlString = route.request().url()
@@ -141,9 +155,10 @@ async function main() {
           metadata.authorsList = normalizeAuthors(metadata.authorsList)
         }
 
-        if (!result.meta) {
+        if (!result.meta || isFallbackMeta) {
           console.warn('book meta', metadata)
           result.meta = metadata
+          isFallbackMeta = false
         }
       } else if (
         url.hostname === amazonHost &&
@@ -445,10 +460,10 @@ async function main() {
 
   // At this point, we should have recorded all the base book metadata from the
   // initial network requests.
-  // `info` (startReading) and `meta` (YJmetadata.jsonp) may not be observable
-  // on all Kindle web reader variants (e.g. regional domains serving them from
-  // a worker); neither is required for page extraction, so fall back instead
-  // of failing hard.
+  // `info` (startReading) and `meta` (YJmetadata.jsonp) are not observable on
+  // some Kindle web reader variants even with service workers blocked (e.g.
+  // read.amazon.ca). Neither is required for page extraction, so fall back
+  // instead of failing hard.
   if (!result.info) {
     console.warn('warning: book info (startReading) not captured; continuing')
   }
@@ -457,10 +472,19 @@ async function main() {
     console.warn(
       'warning: book meta (YJmetadata.jsonp) not captured; using fallbacks'
     )
+    if (result.nav.startPosition < 0) {
+      console.warn(
+        'warning: no start position available; extraction will begin at page 1 and may include front matter'
+      )
+    }
+    isFallbackMeta = true
     result.meta = {
       asin,
-      title: getEnv('BOOK_TITLE') ?? asin,
-      authorList: [getEnv('BOOK_AUTHOR')].filter(Boolean),
+      title: getEnv('BOOK_TITLE')?.trim() || asin,
+      authorList: (getEnv('BOOK_AUTHOR') ?? '')
+        .split(/[,;]/)
+        .map((author) => author.trim())
+        .filter(Boolean),
       startPosition: result.nav.startPosition
     } as any
   }
@@ -468,7 +492,8 @@ async function main() {
   assert(result.toc?.length, 'expected book toc to be initialized')
   assert(result.locationMap, 'expected book location map to be initialized')
 
-  result.nav.startContentPosition = result.meta.startPosition
+  // result.meta is guaranteed by the fallback branch above
+  result.nav.startContentPosition = result.meta!.startPosition
   result.nav.totalNumPages = result.locationMap.navigationUnit.reduce(
     (acc, navUnit) => {
       return Math.max(acc, navUnit.page ?? -1)
