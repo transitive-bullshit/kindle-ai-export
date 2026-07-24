@@ -188,41 +188,7 @@ async function main() {
             numPage
           })
 
-          const locationMap = await tryReadJsonFile<AmazonRenderLocationMap>(
-            path.join(renderDir, 'location_map.json')
-          )
-          if (locationMap) {
-            result.locationMap = locationMap
-
-            for (const navUnit of result.locationMap.navigationUnit) {
-              navUnit.page = Number.parseInt(navUnit.label, 10)
-              assert(
-                !Number.isNaN(navUnit.page),
-                `invalid locationMap page number: ${navUnit.label}`
-              )
-            }
-          }
-
-          const metadata = await tryReadJsonFile<any>(
-            path.join(renderDir, 'metadata.json')
-          )
-          if (metadata) {
-            result.nav.startPosition = metadata.firstPositionId
-            result.nav.endPosition = metadata.lastPositionId
-          }
-
-          const rawToc = await tryReadJsonFile<AmazonRenderToc>(
-            path.join(renderDir, 'toc.json')
-          )
-          if (rawToc && result.locationMap && !result.toc) {
-            const toc: TocItem[] = []
-
-            for (const rawTocItem of rawToc) {
-              toc.push(...getTocItems(rawTocItem, { depth: 0 }))
-            }
-
-            result.toc = toc
-          }
+          await processRenderData(renderDir)
 
           // TODO: `page_data_0_5.json` has start/end/words for each page in this render batch
           // const toc = JSON.parse(
@@ -361,10 +327,14 @@ async function main() {
     await page.locator('ion-button[aria-label="Reader menu"]').click()
     await delay(500)
     await page
-      .locator('ion-item[role="listitem"]', { hasText: 'Go to Page' })
+      .locator('ion-item[role="listitem"]', {
+        // Location-based books label this menu item "Go to Location"
+        hasText: /go to (page|location)/i
+      })
       .click()
     await page
-      .locator('ion-modal input[placeholder="page number"]')
+      .locator('ion-modal input[placeholder="page number"], ion-modal input')
+      .first()
       .fill(`${pageNumber}`)
     // await page.locator('ion-modal button', { hasText: 'Go' }).click()
     await page
@@ -427,6 +397,46 @@ async function main() {
     return tocItems
   }
 
+  async function processRenderData(renderDir: string) {
+    const locationMap = await tryReadJsonFile<AmazonRenderLocationMap>(
+      path.join(renderDir, 'location_map.json')
+    )
+    if (locationMap) {
+      result.locationMap = locationMap
+
+      for (const navUnit of result.locationMap.navigationUnit) {
+        const parsedPage = Number.parseInt(navUnit.label, 10)
+        // Front matter pages can carry roman-numeral labels (i, v, III, …);
+        // leave those unnumbered rather than aborting the whole render parse.
+        navUnit.page = Number.isNaN(parsedPage) ? undefined : parsedPage
+      }
+    }
+
+    const metadata = await tryReadJsonFile<any>(
+      path.join(renderDir, 'metadata.json')
+    )
+    if (metadata) {
+      result.nav.startPosition = metadata.firstPositionId
+      result.nav.endPosition = metadata.lastPositionId
+    }
+
+    const rawToc = await tryReadJsonFile<AmazonRenderToc>(
+      path.join(renderDir, 'toc.json')
+    )
+    // Note: newer render formats omit location_map.json entirely; the
+    // toc is still usable, its items just won't have page numbers
+    // (getPageForPosition returns -1 without a location map).
+    if (rawToc && !result.toc) {
+      const toc: TocItem[] = []
+
+      for (const rawTocItem of rawToc) {
+        toc.push(...getTocItems(rawTocItem, { depth: 0 }))
+      }
+
+      result.toc = toc
+    }
+  }
+
   function getPageForPosition(position: number): number {
     if (!result.locationMap) return -1
 
@@ -436,7 +446,9 @@ async function main() {
     for (const { startPosition, page } of result.locationMap.navigationUnit) {
       if (startPosition > position) break
 
-      resultPage = page
+      if (page !== undefined) {
+        resultPage = page
+      }
     }
 
     return resultPage
@@ -457,6 +469,21 @@ async function main() {
 
   // Record the initial page navigation so we can reset back to it later
   const initialPageNav = await getPageNav()
+
+  // Seed book data from render TARs saved by previous runs — the reader may
+  // serve cached content and never re-request the toc-bearing render.
+  const renderRoot = path.join(userDataDir, 'render')
+  const priorRenderDirs = await fs.readdir(renderRoot).catch(() => [])
+  for (const dir of priorRenderDirs) {
+    if (result.toc && result.locationMap) break
+    await processRenderData(path.join(renderRoot, dir)).catch(() => {})
+  }
+
+  // Give any in-flight render TAR processing a moment to finish before
+  // asserting on the data it populates.
+  for (let i = 0; i < 100 && !result.toc; i++) {
+    await delay(100)
+  }
 
   // At this point, we should have recorded all the base book metadata from the
   // initial network requests.
@@ -490,20 +517,36 @@ async function main() {
   }
 
   assert(result.toc?.length, 'expected book toc to be initialized')
-  assert(result.locationMap, 'expected book location map to be initialized')
+  if (!result.locationMap) {
+    console.warn(
+      'warning: render data has no location_map.json (newer format); using live page navigation for page counts'
+    )
+  }
 
   // result.meta is guaranteed by the fallback branch above
   result.nav.startContentPosition = result.meta!.startPosition
-  result.nav.totalNumPages = result.locationMap.navigationUnit.reduce(
-    (acc, navUnit) => {
-      return Math.max(acc, navUnit.page ?? -1)
-    },
-    -1
-  )
+  result.nav.totalNumPages = result.locationMap
+    ? result.locationMap.navigationUnit.reduce((acc, navUnit) => {
+        return Math.max(acc, navUnit.page ?? -1)
+      }, -1)
+    : (initialPageNav?.total ?? -1)
+  if (result.nav.totalNumPages <= 0) {
+    // Location-based book with an unparseable footer: no way to know the
+    // total ahead of time, so capture until navigation stops advancing.
+    console.warn(
+      'warning: no page count available from location map or reader footer; capturing until navigation stops'
+    )
+    result.nav.totalNumPages = 99_999
+  }
   assert(result.nav.totalNumPages > 0, 'parsed book nav has no pages')
   result.nav.startContentPage = getPageForPosition(
     result.nav.startContentPosition
   )
+  if (result.nav.startContentPage < 1) {
+    // No location map to resolve the start-reading position; capture from
+    // page 1 and accept some front matter.
+    result.nav.startContentPage = 1
+  }
 
   const parsedToc = parseTocItems(result.toc, {
     totalNumPages: result.nav.totalNumPages
@@ -523,7 +566,14 @@ async function main() {
   await writeResultMetadata()
 
   // Navigate to the first content page of the book
-  await goToPage(result.nav.startContentPage)
+  try {
+    await goToPage(result.nav.startContentPage)
+  } catch (err: any) {
+    console.warn(
+      'warning: unable to navigate to start page; capturing from current position',
+      err.message
+    )
+  }
 
   let done = false
   console.warn(
@@ -534,11 +584,12 @@ async function main() {
   do {
     const pageNav = await getPageNav()
 
-    if (pageNav?.page === undefined) {
-      break
-    }
+    // Location-based books (and unparseable footers) have no page numbers;
+    // fall back to the location, then to a simple counter.
+    const pageMarker =
+      pageNav?.page ?? pageNav?.location ?? result.pages.length + 1
 
-    if (pageNav.page > result.nav.totalNumContentPages) {
+    if (pageMarker > result.nav.totalNumContentPages) {
       break
     }
 
@@ -572,7 +623,7 @@ async function main() {
 
       assert(
         blob,
-        `no blob found for src: ${src} (index ${index}; page ${pageNav.page})`
+        `no blob found for src: ${src} (index ${index}; page ${pageMarker})`
       )
 
       const rawRenderedImage = Buffer.from(blob.base64, 'base64')
@@ -593,21 +644,21 @@ async function main() {
 
     assert(
       renderedPageImageBuffer,
-      `no buffer found for src: ${src} (index ${index}; page ${pageNav.page})`
+      `no buffer found for src: ${src} (index ${index}; page ${pageMarker})`
     )
 
     const screenshotPath = path.join(
       pageScreenshotsDir,
       `${index}`.padStart(pageNumberPaddingAmount, '0') +
         '-' +
-        `${pageNav.page}`.padStart(pageNumberPaddingAmount, '0') +
+        `${pageMarker}`.padStart(pageNumberPaddingAmount, '0') +
         '.png'
     )
 
     await fs.writeFile(screenshotPath, renderedPageImageBuffer)
     const pageChunk = {
       index,
-      page: pageNav.page,
+      page: pageMarker,
       screenshot: screenshotPath
     }
     result.pages.push(pageChunk)
@@ -669,10 +720,13 @@ async function main() {
   console.log()
   console.log(metadataPath)
 
-  if (initialPageNav?.page !== undefined) {
-    console.warn(`resetting back to initial page ${initialPageNav.page}...`)
-    // Reset back to the initial page
-    await goToPage(initialPageNav.page)
+  const resetTarget = initialPageNav?.page ?? initialPageNav?.location
+  if (resetTarget !== undefined) {
+    console.warn(`resetting back to initial page/location ${resetTarget}...`)
+    // Reset back to the initial position
+    await goToPage(resetTarget).catch((err: any) => {
+      console.warn('warning: unable to reset reading position', err.message)
+    })
   }
 
   await context.close()
