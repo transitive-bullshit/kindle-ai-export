@@ -126,20 +126,6 @@ async function main() {
   page.on('response', async (response) => {
     try {
       const status = response.status()
-      const debugUrl = new URL(response.url())
-      if (
-        /startreading|metadata|getfilecontent|service\//i.test(
-          debugUrl.pathname
-        )
-      ) {
-        console.warn(
-          '[debug response]',
-          status,
-          debugUrl.hostname,
-          debugUrl.pathname + debugUrl.search
-        )
-      }
-
       if (status !== 200) {
         return
       }
