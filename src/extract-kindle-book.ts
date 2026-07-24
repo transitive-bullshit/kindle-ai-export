@@ -401,7 +401,9 @@ async function main() {
     const locationMap = await tryReadJsonFile<AmazonRenderLocationMap>(
       path.join(renderDir, 'location_map.json')
     )
-    if (locationMap) {
+    // Some books ship a locations-only map with no navigationUnit (no page
+    // numbers at all); treat those like a missing location map.
+    if (locationMap?.navigationUnit) {
       result.locationMap = locationMap
 
       for (const navUnit of result.locationMap.navigationUnit) {
