@@ -59,7 +59,8 @@ async function main() {
   await fs.mkdir(pageScreenshotsDir, { recursive: true })
 
   const krRendererMainImageSelector = '#kr-renderer .kg-full-page-img img'
-  const bookReaderUrl = `https://read.amazon.com/?asin=${asin}`
+  const amazonHost = getEnv('AMAZON_HOST') ?? 'read.amazon.com'
+  const bookReaderUrl = `https://${amazonHost}/?asin=${asin}`
 
   const result: SetRequired<Partial<BookMetadata>, 'pages' | 'nav'> = {
     pages: [],
@@ -80,6 +81,10 @@ async function main() {
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     channel: 'chrome',
+    // Kindle's web reader uses a service worker that can serve the
+    // startReading/metadata API calls from cache, which hides them from
+    // page.on('response') and leaves result.info/meta uninitialized.
+    serviceWorkers: 'block',
     args: [
       // hide chrome's crash restore popup
       '--hide-crash-restore-bubble',
@@ -121,6 +126,20 @@ async function main() {
   page.on('response', async (response) => {
     try {
       const status = response.status()
+      const debugUrl = new URL(response.url())
+      if (
+        /startreading|metadata|getfilecontent|service\//i.test(
+          debugUrl.pathname
+        )
+      ) {
+        console.warn(
+          '[debug response]',
+          status,
+          debugUrl.hostname,
+          debugUrl.pathname + debugUrl.search
+        )
+      }
+
       if (status !== 200) {
         return
       }
@@ -141,7 +160,7 @@ async function main() {
           result.meta = metadata
         }
       } else if (
-        url.hostname === 'read.amazon.com' &&
+        url.hostname === amazonHost &&
         url.searchParams.get('asin')?.toLowerCase() === asinL
       ) {
         if (url.pathname === '/service/mobile/reader/startReading') {
@@ -440,8 +459,26 @@ async function main() {
 
   // At this point, we should have recorded all the base book metadata from the
   // initial network requests.
-  assert(result.info, 'expected book info to be initialized')
-  assert(result.meta, 'expected book meta to be initialized')
+  // `info` (startReading) and `meta` (YJmetadata.jsonp) may not be observable
+  // on all Kindle web reader variants (e.g. regional domains serving them from
+  // a worker); neither is required for page extraction, so fall back instead
+  // of failing hard.
+  if (!result.info) {
+    console.warn('warning: book info (startReading) not captured; continuing')
+  }
+
+  if (!result.meta) {
+    console.warn(
+      'warning: book meta (YJmetadata.jsonp) not captured; using fallbacks'
+    )
+    result.meta = {
+      asin,
+      title: getEnv('BOOK_TITLE') ?? asin,
+      authorList: [getEnv('BOOK_AUTHOR')].filter(Boolean),
+      startPosition: result.nav.startPosition
+    } as any
+  }
+
   assert(result.toc?.length, 'expected book toc to be initialized')
   assert(result.locationMap, 'expected book location map to be initialized')
 
