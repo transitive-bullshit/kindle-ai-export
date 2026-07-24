@@ -173,6 +173,20 @@ OPENAI_API_KEY=
 
 You can find your book's [ASIN](https://en.wikipedia.org/wiki/Amazon_Standard_Identification_Number) (Amazon ID) by visiting [read.amazon.com](https://read.amazon.com) and clicking on the book you want to export. The resulting URL will look like `https://read.amazon.com/?asin=B0819W19WD&ref_=kwl_kr_iv_rec_2`, with `B0819W19WD` being the ASIN in this case.
 
+Optional environment variables:
+
+```sh
+# If your Kindle library lives on a regional domain, set it here
+# (e.g. read.amazon.ca, read.amazon.co.uk). Defaults to read.amazon.com.
+AMAZON_HOST=read.amazon.com
+
+# Fallback title/author metadata, used only if the Kindle reader's book
+# metadata responses can't be captured from the network — the extract script
+# prints a warning when this happens. Separate multiple authors with commas.
+BOOK_TITLE=
+BOOK_AUTHOR=
+```
+
 ### Extract Kindle Book
 
 ```sh

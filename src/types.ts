@@ -114,7 +114,9 @@ export interface AmazonRenderLocationMap {
   locations: number[]
   navigationUnit: Array<{
     startPosition: number
-    page: number // derived
+    // derived from label; undefined for non-numeric labels (roman-numeral
+    // front matter pages like "v" or "III")
+    page?: number
     label: string
   }>
 }

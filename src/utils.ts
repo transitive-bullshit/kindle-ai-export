@@ -173,7 +173,9 @@ export async function tryReadJsonFile<T = unknown>(
   filePath: string
 ): Promise<T | undefined> {
   try {
-    return readJsonFile(filePath)
+    // The await is load-bearing: without it, a rejected promise escapes the
+    // try/catch and the "try" contract of this helper is broken.
+    return await readJsonFile(filePath)
   } catch {}
 }
 
