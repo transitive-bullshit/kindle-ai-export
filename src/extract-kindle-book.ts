@@ -396,6 +396,27 @@ async function main() {
     }
   }
 
+  /**
+   * The reader can raise its 'Most Recent Page Read' sync dialog at any point,
+   * and the dialog's backdrop swallows pointer events, so an unrelated click
+   * elsewhere on the page just times out. Dismiss it whenever it appears,
+   * keeping our current position ('No').
+   */
+  async function autoDismissAlerts() {
+    await page.addLocatorHandler(
+      page.locator('ion-alert:visible'),
+      async (alert) => {
+        const $no = alert.locator('button', { hasText: 'No' })
+        const $button = (await $no.count())
+          ? $no.first()
+          : alert.locator('button').last()
+
+        await $button.click({ timeout: 5000 }).catch(() => {})
+      },
+      { noWaitAfter: true }
+    )
+  }
+
   async function writeResultMetadata() {
     return fs.writeFile(
       metadataPath,
@@ -443,6 +464,7 @@ async function main() {
     return resultPage
   }
 
+  await autoDismissAlerts()
   await dismissPossibleAlert()
   await ensureFixedHeaderUI()
   await updateSettings()
