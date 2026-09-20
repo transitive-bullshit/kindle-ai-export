@@ -118,9 +118,18 @@ async function main() {
     return route.continue()
   })
 
+  // Set DEBUG_NETWORK=1 to dump every response the page sees, which is the
+  // only reliable way to tell whether the book metadata requests are being
+  // made at all.
+  const debugNetwork = !!getEnv('DEBUG_NETWORK')
+
   page.on('response', async (response) => {
     try {
       const status = response.status()
+      if (debugNetwork) {
+        console.warn('[net]', status, response.url().slice(0, 200))
+      }
+
       if (status !== 200) {
         return
       }
@@ -211,7 +220,12 @@ async function main() {
           // console.warn('toc', toc)
         }
       }
-    } catch {}
+    } catch (err) {
+      // These run against live network responses, whose bodies can vanish out
+      // from under us mid-navigation. Log it instead of silently dropping
+      // metadata that we assert on later.
+      console.warn('error handling response', response.url(), err)
+    }
   })
 
   // Only used for the 'blob' render method
