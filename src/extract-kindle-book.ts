@@ -302,9 +302,7 @@ async function main() {
     await page.locator('input[type="submit"]').click()
 
     if (!/\/kindle-library/g.test(new URL(page.url()).pathname)) {
-      const code = await input({
-        message: '2-factor auth code?'
-      })
+      const code = await promptWithoutLogNoise('2-factor auth code?')
 
       // Only enter 2-factor auth code if needed
       if (code) {
@@ -672,6 +670,39 @@ async function main() {
 
   await context.close()
   await context.browser()?.close()
+}
+
+/**
+ * Prompts for input without the script's background logging scribbling over
+ * the question.
+ *
+ * The reader page keeps streaming network events while we're sitting in the
+ * signin flow, so `console.log` calls from those handlers overwrite inquirer's
+ * prompt line and make it look like the script has hung. We buffer any logs
+ * that arrive while the prompt is open and flush them once it's answered.
+ */
+async function promptWithoutLogNoise(message: string): Promise<string> {
+  const log = console.log
+  const buffered: unknown[][] = []
+  console.log = (...args: unknown[]) => {
+    buffered.push(args)
+  }
+
+  const rule = '\u2500'.repeat(60)
+  log(`\n${rule}`)
+  log('ACTION REQUIRED')
+  log('Enter the code if Amazon is asking for one, or press enter to skip.')
+  log(rule)
+
+  try {
+    return await input({ message })
+  } finally {
+    console.log = log
+
+    for (const args of buffered) {
+      log(...args)
+    }
+  }
 }
 
 await main()
