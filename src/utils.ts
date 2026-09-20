@@ -173,7 +173,9 @@ export async function tryReadJsonFile<T = unknown>(
   filePath: string
 ): Promise<T | undefined> {
   try {
-    return readJsonFile(filePath)
+    // NOTE: this must be awaited inside the `try` or the promise's rejection
+    // escapes the `catch` entirely.
+    return await readJsonFile(filePath)
   } catch {}
 }
 
