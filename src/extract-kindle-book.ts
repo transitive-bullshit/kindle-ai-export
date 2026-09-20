@@ -181,15 +181,22 @@ async function main() {
             path.join(renderDir, 'location_map.json')
           )
           if (locationMap) {
-            result.locationMap = locationMap
+            // Front matter is labelled with roman numerals ('I', 'ii', ...),
+            // which don't map onto the arabic page numbering used everywhere
+            // else, so drop those nav units instead of aborting on them.
+            locationMap.navigationUnit = locationMap.navigationUnit.filter(
+              (navUnit) => {
+                navUnit.page = Number.parseInt(navUnit.label, 10)
+                return !Number.isNaN(navUnit.page)
+              }
+            )
 
-            for (const navUnit of result.locationMap.navigationUnit) {
-              navUnit.page = Number.parseInt(navUnit.label, 10)
-              assert(
-                !Number.isNaN(navUnit.page),
-                `invalid locationMap page number: ${navUnit.label}`
-              )
-            }
+            assert(
+              locationMap.navigationUnit.length,
+              'invalid locationMap: no numbered pages'
+            )
+
+            result.locationMap = locationMap
           }
 
           const metadata = await tryReadJsonFile<any>(
