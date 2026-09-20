@@ -12,6 +12,7 @@ import { chromium } from 'patchright'
 import sharp from 'sharp'
 
 import type {
+  AmazonBookMeta,
   AmazonRenderLocationMap,
   AmazonRenderToc,
   AmazonRenderTocItem,
@@ -52,6 +53,7 @@ async function main() {
   const asinL = asin.toLowerCase()
 
   const outDir = path.join('out', asin)
+  let renderBookMetadata: any
   const userDataDir = path.join(outDir, 'data')
   const pageScreenshotsDir = path.join(outDir, 'pages')
   const metadataPath = path.join(outDir, 'metadata.json')
@@ -80,6 +82,8 @@ async function main() {
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     channel: 'chrome',
+    // Keep the reader's API calls on the network path we can observe
+    serviceWorkers: 'block',
     args: [
       // hide chrome's crash restore popup
       '--hide-crash-restore-bubble',
@@ -205,6 +209,12 @@ async function main() {
           if (metadata) {
             result.nav.startPosition = metadata.firstPositionId
             result.nav.endPosition = metadata.lastPositionId
+
+            // These TARs carry enough book metadata to stand in for
+            // `YJmetadata.jsonp` if we never observe it.
+            if (!renderBookMetadata && metadata.bookTitle) {
+              renderBookMetadata = metadata
+            }
           }
 
           const rawToc = await tryReadJsonFile<AmazonRenderToc>(
@@ -481,7 +491,31 @@ async function main() {
 
   // At this point, we should have recorded all the base book metadata from the
   // initial network requests.
-  assert(result.info, 'expected book info to be initialized')
+  // Current reader versions never fetch `startReading` or `YJmetadata.jsonp`
+  // over a path we can observe, so neither `info` nor `meta` may have been
+  // captured. `info` is unused downstream, and everything downstream needs
+  // from `meta` is present in the render TARs, so fall back to those rather
+  // than failing the whole extraction.
+  if (!result.info) {
+    console.warn('no `startReading` response observed; continuing without it')
+  }
+
+  if (!result.meta && renderBookMetadata) {
+    const firstNumberedPage = result.locationMap?.navigationUnit.find(
+      (navUnit) => navUnit.page >= 1
+    )
+
+    console.warn('synthesizing book meta from render metadata')
+    result.meta = {
+      asin,
+      title: renderBookMetadata.bookTitle,
+      authorList: normalizeAuthors(renderBookMetadata.authors ?? []),
+      language: renderBookMetadata.lang,
+      startPosition:
+        firstNumberedPage?.startPosition ?? renderBookMetadata.firstPositionId
+    } as AmazonBookMeta
+  }
+
   assert(result.meta, 'expected book meta to be initialized')
   assert(result.toc?.length, 'expected book toc to be initialized')
   assert(result.locationMap, 'expected book location map to be initialized')
