@@ -12,6 +12,7 @@ import { chromium } from 'patchright'
 import sharp from 'sharp'
 
 import type {
+  AmazonBookMeta,
   AmazonRenderLocationMap,
   AmazonRenderToc,
   AmazonRenderTocItem,
@@ -52,6 +53,7 @@ async function main() {
   const asinL = asin.toLowerCase()
 
   const outDir = path.join('out', asin)
+  let renderBookMetadata: any
   const userDataDir = path.join(outDir, 'data')
   const pageScreenshotsDir = path.join(outDir, 'pages')
   const metadataPath = path.join(outDir, 'metadata.json')
@@ -80,6 +82,8 @@ async function main() {
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     channel: 'chrome',
+    // Keep the reader's API calls on the network path we can observe
+    serviceWorkers: 'block',
     args: [
       // hide chrome's crash restore popup
       '--hide-crash-restore-bubble',
@@ -118,9 +122,18 @@ async function main() {
     return route.continue()
   })
 
+  // Set DEBUG_NETWORK=1 to dump every response the page sees, which is the
+  // only reliable way to tell whether the book metadata requests are being
+  // made at all.
+  const debugNetwork = !!getEnv('DEBUG_NETWORK')
+
   page.on('response', async (response) => {
     try {
       const status = response.status()
+      if (debugNetwork) {
+        console.warn('[net]', status, response.url().slice(0, 200))
+      }
+
       if (status !== 200) {
         return
       }
@@ -172,15 +185,22 @@ async function main() {
             path.join(renderDir, 'location_map.json')
           )
           if (locationMap) {
-            result.locationMap = locationMap
+            // Front matter is labelled with roman numerals ('I', 'ii', ...),
+            // which don't map onto the arabic page numbering used everywhere
+            // else, so drop those nav units instead of aborting on them.
+            locationMap.navigationUnit = locationMap.navigationUnit.filter(
+              (navUnit) => {
+                navUnit.page = Number.parseInt(navUnit.label, 10)
+                return !Number.isNaN(navUnit.page)
+              }
+            )
 
-            for (const navUnit of result.locationMap.navigationUnit) {
-              navUnit.page = Number.parseInt(navUnit.label, 10)
-              assert(
-                !Number.isNaN(navUnit.page),
-                `invalid locationMap page number: ${navUnit.label}`
-              )
-            }
+            assert(
+              locationMap.navigationUnit.length,
+              'invalid locationMap: no numbered pages'
+            )
+
+            result.locationMap = locationMap
           }
 
           const metadata = await tryReadJsonFile<any>(
@@ -189,6 +209,12 @@ async function main() {
           if (metadata) {
             result.nav.startPosition = metadata.firstPositionId
             result.nav.endPosition = metadata.lastPositionId
+
+            // These TARs carry enough book metadata to stand in for
+            // `YJmetadata.jsonp` if we never observe it.
+            if (!renderBookMetadata && metadata.bookTitle) {
+              renderBookMetadata = metadata
+            }
           }
 
           const rawToc = await tryReadJsonFile<AmazonRenderToc>(
@@ -211,7 +237,12 @@ async function main() {
           // console.warn('toc', toc)
         }
       }
-    } catch {}
+    } catch (err) {
+      // These run against live network responses, whose bodies can vanish out
+      // from under us mid-navigation. Log it instead of silently dropping
+      // metadata that we assert on later.
+      console.warn('error handling response', response.url(), err)
+    }
   })
 
   // Only used for the 'blob' render method
@@ -281,9 +312,7 @@ async function main() {
     await page.locator('input[type="submit"]').click()
 
     if (!/\/kindle-library/g.test(new URL(page.url()).pathname)) {
-      const code = await input({
-        message: '2-factor auth code?'
-      })
+      const code = await promptWithoutLogNoise('2-factor auth code?')
 
       // Only enter 2-factor auth code if needed
       if (code) {
@@ -375,6 +404,27 @@ async function main() {
     }
   }
 
+  /**
+   * The reader can raise its 'Most Recent Page Read' sync dialog at any point,
+   * and the dialog's backdrop swallows pointer events, so an unrelated click
+   * elsewhere on the page just times out. Dismiss it whenever it appears,
+   * keeping our current position ('No').
+   */
+  async function autoDismissAlerts() {
+    await page.addLocatorHandler(
+      page.locator('ion-alert:visible'),
+      async (alert) => {
+        const $no = alert.locator('button', { hasText: 'No' })
+        const $button = (await $no.count())
+          ? $no.first()
+          : alert.locator('button').last()
+
+        await $button.click({ timeout: 5000 }).catch(() => {})
+      },
+      { noWaitAfter: true }
+    )
+  }
+
   async function writeResultMetadata() {
     return fs.writeFile(
       metadataPath,
@@ -422,6 +472,7 @@ async function main() {
     return resultPage
   }
 
+  await autoDismissAlerts()
   await dismissPossibleAlert()
   await ensureFixedHeaderUI()
   await updateSettings()
@@ -440,7 +491,31 @@ async function main() {
 
   // At this point, we should have recorded all the base book metadata from the
   // initial network requests.
-  assert(result.info, 'expected book info to be initialized')
+  // Current reader versions never fetch `startReading` or `YJmetadata.jsonp`
+  // over a path we can observe, so neither `info` nor `meta` may have been
+  // captured. `info` is unused downstream, and everything downstream needs
+  // from `meta` is present in the render TARs, so fall back to those rather
+  // than failing the whole extraction.
+  if (!result.info) {
+    console.warn('no `startReading` response observed; continuing without it')
+  }
+
+  if (!result.meta && renderBookMetadata) {
+    const firstNumberedPage = result.locationMap?.navigationUnit.find(
+      (navUnit) => navUnit.page >= 1
+    )
+
+    console.warn('synthesizing book meta from render metadata')
+    result.meta = {
+      asin,
+      title: renderBookMetadata.bookTitle,
+      authorList: normalizeAuthors(renderBookMetadata.authors ?? []),
+      language: renderBookMetadata.lang,
+      startPosition:
+        firstNumberedPage?.startPosition ?? renderBookMetadata.firstPositionId
+    } as AmazonBookMeta
+  }
+
   assert(result.meta, 'expected book meta to be initialized')
   assert(result.toc?.length, 'expected book toc to be initialized')
   assert(result.locationMap, 'expected book location map to be initialized')
@@ -629,6 +704,39 @@ async function main() {
 
   await context.close()
   await context.browser()?.close()
+}
+
+/**
+ * Prompts for input without the script's background logging scribbling over
+ * the question.
+ *
+ * The reader page keeps streaming network events while we're sitting in the
+ * signin flow, so `console.log` calls from those handlers overwrite inquirer's
+ * prompt line and make it look like the script has hung. We buffer any logs
+ * that arrive while the prompt is open and flush them once it's answered.
+ */
+async function promptWithoutLogNoise(message: string): Promise<string> {
+  const log = console.log
+  const buffered: unknown[][] = []
+  console.log = (...args: unknown[]) => {
+    buffered.push(args)
+  }
+
+  const rule = '\u2500'.repeat(60)
+  log(`\n${rule}`)
+  log('ACTION REQUIRED')
+  log('Enter the code if Amazon is asking for one, or press enter to skip.')
+  log(rule)
+
+  try {
+    return await input({ message })
+  } finally {
+    console.log = log
+
+    for (const args of buffered) {
+      log(...args)
+    }
+  }
 }
 
 await main()
