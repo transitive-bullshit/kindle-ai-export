@@ -1,3 +1,9 @@
+allowBuilds:
+  esbuild: true
+  sharp: true
+  simple-git-hooks: true
+  unrealspeech-api: true
+
 enablePrePostScripts: true
 
 minimumReleaseAge: 1440
